@@ -145,9 +145,9 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'anon': '100/day',
         'user': '1000/day',
-        'login': '5/5min',
-        'reports': '5/10min',
-        'predictions_read': '200/hour',
+        'login': '5/m',
+        'reports': '5/m',
+        'predictions_read': '200/h',
     },
 }
 

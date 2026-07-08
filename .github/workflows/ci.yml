@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  django:
+    name: Django tests + lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cityflow_backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r ../requirements.txt flake8
+
+      - name: Lint (flake8)
+        run: flake8 . --max-line-length=120 --exclude=migrations
+
+      - name: Run tests
+        run: python manage.py test --verbosity=2
+
+  flutter:
+    name: Flutter tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cityflow_app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.x"
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Run tests
+        run: flutter test
