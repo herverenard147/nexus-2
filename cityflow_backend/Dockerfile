@@ -8,16 +8,18 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev gcc && rm -rf /var/lib/apt/lists/*
 
-# requirements.txt est copié depuis la racine du build context (docker-compose)
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt gunicorn
 
+# Code backend + start.sh (start.sh est dans cityflow_backend/)
 COPY cityflow_backend/ .
 
+# Données de démo incluses dans l'image (GeoJSON OSM + météo Open-Meteo)
+COPY docs/data/ /app/docs/data/
+
 RUN python manage.py collectstatic --noinput || true
+RUN chmod +x /app/start.sh
 
 EXPOSE 8000
 
-CMD sh -c "python manage.py migrate --noinput && \
-           gunicorn cityflow_backend.wsgi:application \
-           --bind 0.0.0.0:${PORT:-8000} --workers 2 --timeout 60"
+CMD ["/app/start.sh"]

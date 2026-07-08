@@ -1,14 +1,19 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import '../models/prediction.dart';
 import '../models/segment.dart';
 import '../models/weather_alert.dart';
 
+const String _kProdUrl = 'https://cityflow-backend-vhz5.onrender.com';
+const String _kDevUrl = 'http://10.0.2.2:8000';
+
 class ApiService {
   final String baseUrl;
   String? _accessToken;
 
-  ApiService({this.baseUrl = 'http://10.0.2.2:8000'});
+  ApiService({String? baseUrl})
+      : baseUrl = baseUrl ?? (kIsWeb ? _kProdUrl : _kDevUrl);
 
   void setToken(String token) => _accessToken = token;
   void clearToken() => _accessToken = null;
