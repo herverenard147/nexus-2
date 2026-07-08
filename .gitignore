@@ -20,3 +20,6 @@ Thumbs.db
 
 # Editor lock files
 .~lock.*#
+
+# Données brutes intermédiaires (remplacées par les fichiers convertis dans docs/data/)
+docs/data/*_raw.json
