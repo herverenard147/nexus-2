@@ -7,7 +7,7 @@ from rest_framework.views import APIView
 from django.http import HttpResponse
 
 from environment.models import WeatherEvent
-from mobility.models import RoadSegment, Prediction, TrafficRecord
+from mobility.models import RoadSegment, Prediction
 from reports.models import Report
 from .permissions import IsAutorite
 

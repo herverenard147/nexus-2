@@ -1,9 +1,7 @@
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import User
-from environment.models import WeatherEvent
 from mobility.models import Prediction, RoadSegment
 from reports.models import Report
 

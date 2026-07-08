@@ -27,7 +27,6 @@ class PredictorTests(TestCase):
         self.seg = _make_segment()
 
     def _add_history(self, segment, hour=8, congestion=60):
-        from datetime import datetime
         ts = timezone.now().replace(hour=hour, minute=0, second=0, microsecond=0)
         TrafficRecord.objects.create(
             segment=segment, timestamp=ts,

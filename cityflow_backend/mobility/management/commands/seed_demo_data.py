@@ -70,7 +70,6 @@ class Command(BaseCommand):
             if username in existing_usernames:
                 continue
             existing_usernames.add(username)
-            profil = rng.choice(PROFILS)
             zone = rng.choice(ZONES_RESIDENCE)
             users_to_create.append(User(
                 username=username,
@@ -80,7 +79,7 @@ class Command(BaseCommand):
                 role='citoyen',
                 zone=zone,
             ))
-        created_users = User.objects.bulk_create(users_to_create, ignore_conflicts=True)
+        User.objects.bulk_create(users_to_create, ignore_conflicts=True)
         self.stdout.write(f"{len(users_to_create)} utilisateurs créés.")
 
         # Historique de trafic simulé

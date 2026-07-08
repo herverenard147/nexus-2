@@ -4,10 +4,7 @@ Ces signalements sont DISTINCTS du signalement fait en direct pendant la démo j
 Doit être lancé après seed_demo_data.
 """
 import random
-from datetime import timedelta
-
 from django.core.management.base import BaseCommand, CommandError
-from django.utils import timezone
 
 from accounts.models import User
 from mobility.models import RoadSegment
@@ -36,12 +33,11 @@ class Command(BaseCommand):
 
         types = ['accident', 'nid_de_poule', 'route_barree', 'vehicule_en_panne']
         statuts = ['actif', 'actif', 'actif', 'resolu']
-        now = timezone.now()
         reports = []
         for i in range(count):
             type_incident = rng.choice(types)
             statut = rng.choice(statuts)
-            delta = timedelta(hours=rng.randint(1, 72))
+            rng.randint(1, 72)  # avance le RNG pour rester reproductible
             report = Report(
                 user=rng.choice(users),
                 segment=rng.choice(segments),

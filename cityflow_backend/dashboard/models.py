@@ -1,3 +1,1 @@
-from django.db import models
-
-# Create your models here.
+# Dashboard n'a pas de modèles propres — tout passe par mobility, reports, environment.
