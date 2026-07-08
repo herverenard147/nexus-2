@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: cityflow-backend
+    env: docker
+    dockerfilePath: ./cityflow_backend/Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cityflow-db
+          property: connectionString
+      - key: CORS_ALLOW_ALL_ORIGINS
+        value: "True"
+      - key: SECURE_SSL_REDIRECT
+        value: "False"
+      - key: SESSION_COOKIE_SECURE
+        value: "True"
+      - key: CSRF_COOKIE_SECURE
+        value: "True"
+
+databases:
+  - name: cityflow-db
+    databaseName: cityflow_db
+    user: cityflow
+    plan: free
