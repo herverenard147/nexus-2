@@ -1,0 +1,22 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.env
+*.sqlite3
+
+# Flutter / Dart
+cityflow_app/.dart_tool/
+cityflow_app/build/
+cityflow_app/.flutter-plugins
+cityflow_app/.flutter-plugins-dependencies
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor lock files
+.~lock.*#
