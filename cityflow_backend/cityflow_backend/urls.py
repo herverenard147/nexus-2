@@ -115,6 +115,31 @@ def seed(request):
 
 
 @csrf_exempt
+def set_demo_password(request):
+    """Réinitialise le mot de passe de citoyen0. Usage unique, protégé par SEED_TOKEN."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST requis'}, status=405)
+    if not _SEED_TOKEN:
+        return JsonResponse({'error': 'SEED_TOKEN absent'}, status=500)
+    if request.headers.get('X-Seed-Token') != _SEED_TOKEN:
+        return JsonResponse({'error': 'Token invalide'}, status=403)
+    import json as _json
+    body = _json.loads(request.body)
+    username = body.get('username', 'citoyen0')
+    new_pwd = body.get('password')
+    if not new_pwd:
+        return JsonResponse({'error': 'password requis'}, status=400)
+    from accounts.models import User
+    try:
+        u = User.objects.get(username=username)
+        u.set_password(new_pwd)
+        u.save()
+        return JsonResponse({'status': 'ok', 'username': username, 'role': u.role})
+    except User.DoesNotExist:
+        return JsonResponse({'error': f'{username} introuvable'}, status=404)
+
+
+@csrf_exempt
 def cleanup_test_accounts(request):
     """Supprime les comptes de test pirates. Usage unique, protégé par SEED_TOKEN."""
     if request.method != 'POST':
@@ -135,6 +160,7 @@ urlpatterns = [
     path('health/', health),
     path('seed/', seed),
     path('cleanup-test-accounts/', cleanup_test_accounts),
+    path('set-demo-password/', set_demo_password),
     path('admin/', admin.site.urls),
     path('api/auth/', include('accounts.urls')),
     path('api/', include('mobility.urls')),
