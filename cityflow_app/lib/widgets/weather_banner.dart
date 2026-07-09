@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/weather_alert.dart';
+import '../theme/app_theme.dart';
 
-/// Étape 4.16 — bandeau alerte météo (double codage : couleur bleue + icône goutte).
+/// Bandeau alerte météo — double codage : couleur bleue + icône goutte (WCAG).
 class WeatherBanner extends StatelessWidget {
   final List<WeatherAlert> alerts;
 
@@ -13,16 +14,22 @@ class WeatherBanner extends StatelessWidget {
     final zones = alerts.map((a) => a.nom.isNotEmpty ? a.nom : a.zone).join(', ');
     return Container(
       width: double.infinity,
-      color: const Color(0xFF1565C0),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      color: AppColors.inondation,
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md, vertical: AppSpacing.xs),
       child: Row(
         children: [
-          const Icon(Icons.water_drop, color: Colors.white, size: 18),
-          const SizedBox(width: 8),
+          const Icon(Icons.water_drop, color: AppColors.onPrimary, size: 16),
+          const SizedBox(width: AppSpacing.xs),
           Expanded(
             child: Text(
               'Alerte inondation : $zones',
-              style: const TextStyle(color: Colors.white, fontSize: 13),
+              style: const TextStyle(
+                color: AppColors.onPrimary,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                fontFamily: 'Inter',
+              ),
             ),
           ),
         ],

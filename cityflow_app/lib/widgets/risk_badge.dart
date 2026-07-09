@@ -1,31 +1,41 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 
 /// Double codage couleur + icône/texte pour l'accessibilité daltoniens (WCAG).
 class RiskBadge extends StatelessWidget {
-  final int niveau; // 0=fluide, 1=modéré, 2=critique
+  final int niveau; // 0=fluide, 1=dense, 2=bloqué
 
   const RiskBadge({super.key, required this.niveau});
 
-  static const _colors = [Color(0xFF2E7D32), Color(0xFFF57F17), Color(0xFFC62828)];
+  static const _colors = [AppColors.fluide, AppColors.dense, AppColors.bloque];
   static const _icons = [Icons.check_circle, Icons.warning, Icons.cancel];
-  static const _labels = ['Fluide', 'Modéré', 'Critique'];
+  static const _labels = ['Fluide', 'Dense', 'Bloqué'];
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(_icons[niveau], color: _colors[niveau], size: 18),
-        const SizedBox(width: 4),
-        Text(
-          _labels[niveau],
-          style: TextStyle(
-            color: _colors[niveau],
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
+    final color = _colors[niveau.clamp(0, 2)];
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: AppRadius.chipBorder,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(_icons[niveau.clamp(0, 2)], color: color, size: 14),
+          const SizedBox(width: 4),
+          Text(
+            _labels[niveau.clamp(0, 2)],
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+              fontFamily: 'Inter',
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
