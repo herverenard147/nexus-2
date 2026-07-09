@@ -32,29 +32,55 @@ def health(request):
 
 @csrf_exempt
 def seed(request):
-    """Déclenche le pipeline de données. Protégé par SEED_TOKEN."""
+    """Déclenche le pipeline de données (idempotent). Protégé par SEED_TOKEN."""
     if request.method != 'POST':
         return JsonResponse({'error': 'POST requis'}, status=405)
     if not _SEED_TOKEN or request.headers.get('X-Seed-Token') != _SEED_TOKEN:
         return JsonResponse({'error': 'Token invalide'}, status=403)
 
-    from mobility.models import RoadSegment
-    if RoadSegment.objects.exists():
-        return JsonResponse({'status': 'skip', 'message': 'Données déjà présentes'})
+    from mobility.models import RoadSegment, Prediction, TrafficRecord
+    from environment.models import WeatherEvent
+    from reports.models import Report
+    from accounts.models import User
+
+    segments_exist = RoadSegment.objects.exists()
+    weather_exist = WeatherEvent.objects.exists()
+    citizens_exist = User.objects.filter(role='citoyen').exists()
+    reports_exist = Report.objects.exists()
+    predictions_exist = Prediction.objects.exists()
+    history_exist = TrafficRecord.objects.exists()
+
+    if segments_exist and weather_exist and citizens_exist and reports_exist and predictions_exist:
+        return JsonResponse({'status': 'skip', 'message': 'Données déjà présentes',
+                             'segments': RoadSegment.objects.count(),
+                             'predictions': Prediction.objects.count()})
 
     base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     geojson = '/app/docs/data/grand_abidjan.geojson'
     meteo = '/app/docs/data/meteo_abidjan.json'
-
-    # Étapes rapides (< 2 min au total) — le gros historique est lancé en arrière-plan
-    quick_steps = [
-        ['python', 'manage.py', 'import_osm_segments', '--fichier', geojson],
-        ['python', 'manage.py', 'import_weather_history', '--fichier', meteo],
-        ['python', 'manage.py', 'seed_demo_reports', '--seed', '42'],
-        ['python', 'manage.py', 'recompute_predictions'],
-    ]
     log = []
-    for cmd in quick_steps:
+
+    # 1. Comptes (admin + citoyens) — nécessaires pour seed_demo_reports
+    if not User.objects.filter(role='autorite').exists():
+        User.objects.create_superuser('admin', 'admin@cityflow.ci', 'Admin1234!', role='autorite')
+        log.append({'cmd': 'create admin', 'ok': True, 'out': 'admin créé', 'err': ''})
+    if not citizens_exist:
+        for i in range(5):
+            User.objects.create_user(f'citoyen{i}', f'c{i}@cityflow.ci', 'Citoyen1234!', role='citoyen')
+        log.append({'cmd': 'create citoyens', 'ok': True, 'out': '5 citoyens créés', 'err': ''})
+
+    # 2. Segments OSM si absent
+    steps = []
+    if not segments_exist:
+        steps.append(['python', 'manage.py', 'import_osm_segments', '--fichier', geojson])
+    if not weather_exist:
+        steps.append(['python', 'manage.py', 'import_weather_history', '--fichier', meteo])
+    if not reports_exist:
+        steps.append(['python', 'manage.py', 'seed_demo_reports', '--seed', '42'])
+    if not predictions_exist:
+        steps.append(['python', 'manage.py', 'recompute_predictions'])
+
+    for cmd in steps:
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, cwd=base, timeout=110)
             log.append({'cmd': ' '.join(cmd[2:]), 'ok': result.returncode == 0,
@@ -64,12 +90,13 @@ def seed(request):
         except Exception as e:
             return JsonResponse({'status': 'error', 'step': cmd[2], 'detail': str(e), 'log': log}, status=500)
 
-    # Historique trafic (3M lignes) en arrière-plan — n'attend pas la fin
-    subprocess.Popen(
-        ['python', 'manage.py', 'seed_demo_data', '--users', '100', '--days', '30', '--seed', '42'],
-        cwd=base, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-    )
-    log.append({'cmd': 'seed_demo_data (lancé en arrière-plan)', 'ok': True, 'out': '', 'err': ''})
+    # 3. Historique trafic (3M lignes) en arrière-plan — n'attend pas la fin
+    if not history_exist:
+        subprocess.Popen(
+            ['python', 'manage.py', 'seed_demo_data', '--users', '100', '--days', '30', '--seed', '42'],
+            cwd=base, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+        log.append({'cmd': 'seed_demo_data (arrière-plan)', 'ok': True, 'out': '', 'err': ''})
 
     return JsonResponse({'status': 'ok', 'log': log})
 
