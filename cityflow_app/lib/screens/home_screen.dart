@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/prediction.dart';
 import '../models/weather_alert.dart';
 import '../services/api_service.dart';
+import '../theme/app_theme.dart';
 import '../widgets/risk_badge.dart';
 import '../widgets/weather_banner.dart';
 import 'segment_detail_screen.dart';
@@ -51,32 +52,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('CityFlow AI'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _load,
-            tooltip: 'Actualiser',
+    return Column(
+      children: [
+        WeatherBanner(alerts: _alerts),
+        Expanded(child: _buildBody()),
+        const Padding(
+          padding: EdgeInsets.all(4),
+          child: Text(
+            '© OpenStreetMap contributors',
+            style: TextStyle(fontSize: 10, color: AppColors.outline),
+            textAlign: TextAlign.center,
           ),
-        ],
-      ),
-      body: Column(
-        children: [
-          WeatherBanner(alerts: _alerts),
-          Expanded(child: _buildBody()),
-          // Attribution OSM requise par la licence ODbL
-          const Padding(
-            padding: EdgeInsets.all(4),
-            child: Text(
-              '© OpenStreetMap contributors',
-              style: TextStyle(fontSize: 10, color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -87,52 +75,80 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('Chargement des prédictions…'),
+            SizedBox(height: AppSpacing.md),
+            Text('Chargement des prédictions…',
+                style: TextStyle(color: AppColors.onSurfaceVariant)),
           ],
         ),
       );
     }
     if (_error != null) {
       return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.red),
-            const SizedBox(height: 12),
-            const Text('Impossible de charger les données.',
-                style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 4),
-            Text(_error!, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            const SizedBox(height: 16),
-            ElevatedButton(onPressed: _load, child: const Text('Réessayer')),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.containerMargin),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: AppColors.bloque),
+              const SizedBox(height: AppSpacing.sm),
+              const Text('Impossible de charger les données.',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              Text(_error!,
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.onSurfaceVariant),
+                  textAlign: TextAlign.center),
+              const SizedBox(height: AppSpacing.md),
+              ElevatedButton(onPressed: _load, child: const Text('Réessayer')),
+            ],
+          ),
         ),
       );
     }
     if (_predictions == null || _predictions!.isEmpty) {
-      return const Center(child: Text('Aucune prédiction disponible.'));
+      return const Center(
+          child: Text('Aucune prédiction disponible.',
+              style: TextStyle(color: AppColors.onSurfaceVariant)));
     }
-    return ListView.separated(
-      itemCount: _predictions!.length,
-      separatorBuilder: (context, index) => const Divider(height: 1),
-      itemBuilder: (context, i) {
-        final pred = _predictions![i];
-        return ListTile(
-          title: Text(pred.segmentNom, style: const TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: Text(pred.segmentZone),
-          trailing: RiskBadge(niveau: pred.niveauRisque),
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => SegmentDetailScreen(
-                api: widget.api,
-                prediction: pred,
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.separated(
+        itemCount: _predictions!.length,
+        separatorBuilder: (_, _) => const Divider(height: 1),
+        itemBuilder: (context, i) {
+          final pred = _predictions![i];
+          return ListTile(
+            contentPadding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+            title: Text(pred.segmentNom,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                    color: AppColors.onSurface)),
+            subtitle: Text(pred.segmentZone,
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.onSurfaceVariant)),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RiskBadge(niveau: pred.niveauRisque),
+                const SizedBox(width: AppSpacing.xs),
+                const Icon(Icons.chevron_right,
+                    color: AppColors.outline, size: 18),
+              ],
+            ),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => SegmentDetailScreen(
+                  api: widget.api,
+                  prediction: pred,
+                ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }

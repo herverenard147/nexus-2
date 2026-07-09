@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'screens/home_screen.dart';
+import 'screens/splash_screen.dart';
 import 'services/api_service.dart';
+import 'theme/app_theme.dart';
 
 final _api = ApiService();
 
@@ -14,11 +15,8 @@ class CityFlowApp extends StatelessWidget {
     return MaterialApp(
       title: 'CityFlow AI',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1565C0)),
-        useMaterial3: true,
-      ),
-      home: HomeScreen(api: _api),
+      theme: buildAppTheme(),
+      home: SplashScreen(api: _api),
     );
   }
 }

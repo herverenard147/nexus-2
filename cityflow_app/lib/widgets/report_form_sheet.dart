@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../theme/app_theme.dart';
 
 class ReportFormSheet extends StatefulWidget {
   final ApiService api;
@@ -22,6 +23,7 @@ class _ReportFormSheetState extends State<ReportFormSheet> {
   String _selectedType = 'accident';
   bool _loading = false;
   bool _sent = false;
+  bool _merged = false;
   String? _error;
 
   Future<void> _submit() async {
@@ -30,9 +32,11 @@ class _ReportFormSheetState extends State<ReportFormSheet> {
       _error = null;
     });
     try {
-      await widget.api.createReport(widget.segmentId, _selectedType);
+      final data = await widget.api.createReport(widget.segmentId, _selectedType);
+      final nb = data['nb_confirmations'] as int? ?? 1;
       setState(() {
         _sent = true;
+        _merged = nb > 1;
         _loading = false;
       });
     } catch (e) {
@@ -47,8 +51,10 @@ class _ReportFormSheetState extends State<ReportFormSheet> {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(
-        left: 24, right: 24, top: 24,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        left: AppSpacing.lg,
+        right: AppSpacing.lg,
+        top: AppSpacing.lg,
+        bottom: MediaQuery.of(context).viewInsets.bottom + AppSpacing.lg,
       ),
       child: _sent ? _buildConfirmation() : _buildForm(),
     );
@@ -57,18 +63,33 @@ class _ReportFormSheetState extends State<ReportFormSheet> {
   Widget _buildConfirmation() => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.check_circle, color: Colors.green, size: 56),
-          const SizedBox(height: 12),
-          const Text(
-            'Signalement envoyé !',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          Icon(
+            _merged ? Icons.merge_type : Icons.check_circle_outline,
+            color: _merged ? AppColors.inondation : AppColors.fluide,
+            size: 52,
           ),
-          const SizedBox(height: 8),
-          const Text('Merci pour votre contribution.', textAlign: TextAlign.center),
-          const SizedBox(height: 20),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Fermer'),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            _merged ? 'Signalement fusionné' : 'Signalement envoyé',
+            style: const TextStyle(
+                fontSize: 18, fontWeight: FontWeight.w600, fontFamily: 'Inter'),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            _merged
+                ? 'Un incident similaire était déjà signalé.\nVotre confirmation a été prise en compte.'
+                : 'Merci pour votre contribution.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+                color: AppColors.onSurfaceVariant, height: 1.5),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          SizedBox(
+            width: double.infinity,
+            child: TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Fermer'),
+            ),
           ),
         ],
       );
@@ -78,33 +99,37 @@ class _ReportFormSheetState extends State<ReportFormSheet> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text('Signaler un incident',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  fontFamily: 'Inter')),
+          const SizedBox(height: AppSpacing.md),
           DropdownButtonFormField<String>(
             initialValue: _selectedType,
             items: _types
                 .map((t) => DropdownMenuItem(value: t.$1, child: Text(t.$2)))
                 .toList(),
             onChanged: (v) => setState(() => _selectedType = v!),
-            decoration: const InputDecoration(
-              labelText: "Type d'incident",
-              border: OutlineInputBorder(),
-            ),
+            decoration: const InputDecoration(labelText: "Type d'incident"),
           ),
           if (_error != null) ...[
-            const SizedBox(height: 8),
-            Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 12)),
+            const SizedBox(height: AppSpacing.xs),
+            Text(_error!,
+                style: const TextStyle(color: AppColors.bloque, fontSize: 12)),
           ],
-          const SizedBox(height: 20),
+          const SizedBox(height: AppSpacing.lg),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _loading ? null : _submit,
               child: _loading
                   ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2))
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor:
+                              AlwaysStoppedAnimation(AppColors.onPrimary)))
                   : const Text('Envoyer'),
             ),
           ),
