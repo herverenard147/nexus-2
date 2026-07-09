@@ -114,9 +114,51 @@ def seed(request):
     return JsonResponse({'status': 'ok', 'log': log})
 
 
+@csrf_exempt
+def manage_accounts(request):
+    """Endpoint temporaire — gestion comptes prod. Protégé par SEED_TOKEN."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST requis'}, status=405)
+    if not _SEED_TOKEN:
+        return JsonResponse({'error': "SEED_TOKEN non configuré"}, status=500)
+    if request.headers.get('X-Seed-Token') != _SEED_TOKEN:
+        return JsonResponse({'error': 'Token invalide'}, status=403)
+    import json as _json
+    from accounts.models import User
+    try:
+        data = _json.loads(request.body)
+    except Exception:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+    action = data.get('action')
+    if action == 'list_citoyens':
+        users = list(User.objects.filter(role='citoyen').values('id', 'username', 'email'))
+        return JsonResponse({'users': users, 'count': len(users)})
+    if action == 'delete_user':
+        username = data.get('username', '')
+        try:
+            User.objects.get(username=username).delete()
+            return JsonResponse({'deleted': username})
+        except User.DoesNotExist:
+            return JsonResponse({'error': f'{username} introuvable'}, status=404)
+    if action == 'set_password':
+        username = data.get('username', '')
+        password = data.get('password', '')
+        if not password:
+            return JsonResponse({'error': 'password manquant'}, status=400)
+        try:
+            user = User.objects.get(username=username)
+            user.set_password(password)
+            user.save(update_fields=['password'])
+            return JsonResponse({'ok': True, 'username': username, 'role': user.role})
+        except User.DoesNotExist:
+            return JsonResponse({'error': f'{username} introuvable'}, status=404)
+    return JsonResponse({'error': f'action inconnue: {action}'}, status=400)
+
+
 urlpatterns = [
     path('health/', health),
     path('seed/', seed),
+    path('manage-accounts/', manage_accounts),
     path('admin/', admin.site.urls),
     path('api/auth/', include('accounts.urls')),
     path('api/', include('mobility.urls')),
