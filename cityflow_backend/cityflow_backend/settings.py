@@ -63,19 +63,11 @@ TEMPLATES = [
 WSGI_APPLICATION = 'cityflow_backend.wsgi.application'
 
 # --- Base de données ---
+import dj_database_url as _dj_db
+
 _db_url = os.environ.get('DATABASE_URL', '')
-if _db_url.startswith('postgres'):
-    import re
-    _m = re.match(r'postgres(?:ql)?://([^:]+):([^@]+)@([^:/]+):?(\d*)/(.+)', _db_url)
-    if _m:
-        DATABASES = {'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'USER': _m.group(1), 'PASSWORD': _m.group(2),
-            'HOST': _m.group(3), 'PORT': _m.group(4) or '5432',
-            'NAME': _m.group(5),
-        }}
-    else:
-        raise ValueError(f'DATABASE_URL invalide : {_db_url}')
+if _db_url:
+    DATABASES = {'default': _dj_db.parse(_db_url, conn_max_age=600, ssl_require=False)}
 else:
     DATABASES = {'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -98,9 +90,8 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STORAGES = {
-    'staticfiles': {
-        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
-    },
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage'},
 }
 
 AUTH_USER_MODEL = 'accounts.User'
