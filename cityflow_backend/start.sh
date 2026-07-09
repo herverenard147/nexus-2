@@ -1,13 +1,24 @@
 #!/bin/sh
-set -e
 
-echo "[CityFlow] Migration..."
-python manage.py migrate --noinput
+echo "[CityFlow] Démarrage..."
 
-# Seeding en arrière-plan — ne bloque pas le health check Render
+# Attendre que la base soit prête (max 30s)
+MAX=6
+I=0
+until python manage.py migrate --noinput 2>&1; do
+  I=$((I+1))
+  if [ "$I" -ge "$MAX" ]; then
+    echo "[CityFlow] Base de données inaccessible après ${MAX} tentatives. Démarrage sans migration."
+    break
+  fi
+  echo "[CityFlow] DB pas encore prête, nouvelle tentative dans 5s... ($I/$MAX)"
+  sleep 5
+done
+
+# Seeding en arrière-plan si la base est vide (ne bloque pas le health check)
 (
   SEGMENTS=$(python manage.py shell -c \
-    "from mobility.models import RoadSegment; print(RoadSegment.objects.count())" 2>/dev/null)
+    "from mobility.models import RoadSegment; print(RoadSegment.objects.count())" 2>/dev/null) || SEGMENTS=""
   if [ "$SEGMENTS" = "0" ]; then
     echo "[CityFlow] Première installation — chargement des données demo..."
     python manage.py import_osm_segments --fichier /app/docs/data/grand_abidjan.geojson
