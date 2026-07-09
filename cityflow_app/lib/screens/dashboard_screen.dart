@@ -13,7 +13,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  Map<String, dynamic>? _zones;
+  List<Map<String, dynamic>>? _zones;
   Map<String, dynamic>? _stats;
   bool _loading = true;
   String? _error;
@@ -30,13 +30,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _error = null;
     });
     try {
-      final results = await Future.wait([
-        widget.api.getDashboardCriticalZones(),
-        widget.api.getDashboardStats(),
-      ]);
+      final zones = await widget.api.getDashboardCriticalZones();
+      final stats = await widget.api.getDashboardStats();
       setState(() {
-        _zones = results[0];
-        _stats = results[1];
+        _zones = zones;
+        _stats = stats;
         _loading = false;
       });
     } catch (e) {
@@ -58,14 +56,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   List<_ZoneRow> _buildZoneRows() {
-    final zones = _zones?['zones'] as List? ?? [];
-    // Agréger par zone_nom
+    final segments = _zones ?? [];
     final Map<String, _ZoneRow> agg = {};
-    for (final z in zones) {
-      final nom = z['zone_nom'] as String? ?? z['zone'] as String? ?? '—';
-      final score = (z['score_moyen'] as num?)?.toInt() ??
-          (z['score'] as num?)?.toInt() ??
-          0;
+    for (final z in segments) {
+      final nom = z['zone'] as String? ?? '—';
+      final score = (z['score_composite'] as num?)?.toInt() ?? 0;
       if (agg.containsKey(nom)) {
         final existing = agg[nom]!;
         agg[nom] = _ZoneRow(
@@ -94,7 +89,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(width: AppSpacing.xs),
             const Text('CityFlow AI',
                 style: TextStyle(
-                    fontFamily: 'Inter',
                     fontWeight: FontWeight.w700,
                     color: AppColors.onPrimary)),
             const SizedBox(width: AppSpacing.sm),
@@ -181,32 +175,33 @@ class _StatsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final congestion = (stats['congestion_moyenne'] as num?)?.toStringAsFixed(0) ?? '—';
     return Row(
       children: [
         Expanded(
           child: _KpiCard(
-            label: 'Segments',
-            value: '${stats['nb_segments'] ?? stats['segments'] ?? '—'}',
-            icon: Icons.route_outlined,
-            color: AppColors.primary,
-          ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: _KpiCard(
-            label: 'Critiques',
-            value: '${stats['nb_critiques'] ?? stats['critiques'] ?? '—'}',
-            icon: Icons.warning_outlined,
-            color: AppColors.bloque,
-          ),
-        ),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(
-          child: _KpiCard(
             label: 'Signalements',
-            value: '${stats['nb_signalements'] ?? stats['signalements'] ?? '—'}',
+            value: '${stats['nb_signalements_actifs'] ?? '—'}',
             icon: Icons.add_alert_outlined,
             color: AppColors.dense,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: _KpiCard(
+            label: 'Alertes météo',
+            value: '${stats['segments_en_alerte_meteo'] ?? '—'}',
+            icon: Icons.water_drop_outlined,
+            color: AppColors.inondation,
+          ),
+        ),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(
+          child: _KpiCard(
+            label: 'Congestion moy.',
+            value: congestion == '—' ? '—' : '$congestion/100',
+            icon: Icons.speed_outlined,
+            color: AppColors.bloque,
           ),
         ),
       ],
@@ -243,8 +238,7 @@ class _KpiCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.xs),
           Text(value,
               style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 24,
+                  fontSize: 22,
                   fontWeight: FontWeight.w700,
                   color: color)),
           Text(label,
@@ -286,8 +280,8 @@ class _CriticalZonesCard extends StatelessWidget {
                           fontSize: 16,
                         )),
                 const Spacer(),
-                Text('agrégé par zone',
-                    style: const TextStyle(
+                const Text('agrégé par zone',
+                    style: TextStyle(
                         fontSize: 11, color: AppColors.onSurfaceVariant)),
               ],
             ),
@@ -340,8 +334,7 @@ class _ZoneRowTile extends StatelessWidget {
               style: const TextStyle(
                   color: AppColors.onSurfaceVariant,
                   fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  fontFamily: 'Inter')),
+                  fontWeight: FontWeight.w600)),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(row.zone,
@@ -393,19 +386,43 @@ class _ExportCardState extends State<_ExportCard> {
   Future<void> _export() async {
     setState(() => _exporting = true);
     try {
-      final uri = widget.api.getDashboardExportUri();
-      final token = widget.api.accessToken;
-      final res = await Uri.parse(uri.toString()).let((u) async {
-        final r = await _httpGet(u, token);
-        return r;
-      });
+      final csv = await widget.api.downloadCsvExport();
+      if (!mounted) return;
+      final lines = csv.split('\n').where((l) => l.trim().isNotEmpty).length;
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.download_done_outlined, color: AppColors.primary),
+              const SizedBox(width: AppSpacing.xs),
+              Text('Export CSV ($lines lignes)'),
+            ],
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 280,
+            child: SingleChildScrollView(
+              child: SelectableText(
+                csv,
+                style: const TextStyle(fontSize: 10),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Fermer'),
+            ),
+          ],
+        ),
+      );
+    } on ApiException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(res
-              ? 'Export CSV prêt (${uri.host})'
-              : 'Erreur lors de l\'export'),
-          backgroundColor: res ? AppColors.fluide : AppColors.bloque,
+          content: Text('Erreur ${e.statusCode} : ${e.message}'),
+          backgroundColor: AppColors.bloque,
         ),
       );
     } catch (e) {
@@ -418,16 +435,6 @@ class _ExportCardState extends State<_ExportCard> {
       );
     } finally {
       if (mounted) setState(() => _exporting = false);
-    }
-  }
-
-  // Lightweight GET just to validate the endpoint is reachable
-  Future<bool> _httpGet(Uri uri, String? token) async {
-    try {
-      final r = await widget.api.getDashboardStats();
-      return r.isNotEmpty;
-    } catch (_) {
-      return false;
     }
   }
 
@@ -444,15 +451,15 @@ class _ExportCardState extends State<_ExportCard> {
         children: [
           const Icon(Icons.download_outlined, color: AppColors.primary, size: 20),
           const SizedBox(width: AppSpacing.sm),
-          Expanded(
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Export CSV',
+                Text('Export CSV',
                     style: TextStyle(
                         fontWeight: FontWeight.w600, fontSize: 14)),
                 Text('Prédictions et statistiques',
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 12, color: AppColors.onSurfaceVariant)),
               ],
             ),
@@ -478,8 +485,4 @@ class _ExportCardState extends State<_ExportCard> {
       ),
     );
   }
-}
-
-extension _UriExt on Uri {
-  T let<T>(T Function(Uri) f) => f(this);
 }

@@ -184,6 +184,23 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ],
                 ),
+                const SizedBox(height: AppSpacing.xs),
+                Center(
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.admin_panel_settings_outlined,
+                        size: 16, color: AppColors.onSurfaceVariant),
+                    label: const Text('Espace autorités',
+                        style: TextStyle(
+                            color: AppColors.onSurfaceVariant, fontSize: 13)),
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            LoginScreen(api: widget.api, isAutorite: true),
+                      ),
+                    ),
+                  ),
+                ),
               ],
               const SizedBox(height: AppSpacing.xl),
               const _OsmAttribution(),
