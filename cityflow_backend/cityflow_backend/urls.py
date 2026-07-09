@@ -7,7 +7,7 @@ from django.http import JsonResponse
 from django.db import connection
 from django.views.decorators.csrf import csrf_exempt
 
-_SEED_TOKEN = os.environ.get('SEED_TOKEN', '')
+_SEED_TOKEN = os.environ.get('SEED_TOKEN')
 
 
 def health(request):
@@ -35,7 +35,12 @@ def seed(request):
     """Déclenche le pipeline de données (idempotent). Protégé par SEED_TOKEN."""
     if request.method != 'POST':
         return JsonResponse({'error': 'POST requis'}, status=405)
-    if not _SEED_TOKEN or request.headers.get('X-Seed-Token') != _SEED_TOKEN:
+    if not _SEED_TOKEN:
+        return JsonResponse(
+            {'error': "Variable d'environnement SEED_TOKEN non configurée sur le serveur."},
+            status=500,
+        )
+    if request.headers.get('X-Seed-Token') != _SEED_TOKEN:
         return JsonResponse({'error': 'Token invalide'}, status=403)
 
     from mobility.models import RoadSegment, Prediction, TrafficRecord
@@ -62,11 +67,19 @@ def seed(request):
 
     # 1. Comptes (admin + citoyens) — nécessaires pour seed_demo_reports
     if not User.objects.filter(role='autorite').exists():
-        User.objects.create_superuser('admin', 'admin@cityflow.ci', 'Admin1234!', role='autorite')
+        admin_pwd = os.environ.get('ADMIN_PASSWORD')
+        if not admin_pwd:
+            return JsonResponse(
+                {'status': 'error',
+                 'detail': "Variable d'environnement ADMIN_PASSWORD manquante."},
+                status=500,
+            )
+        User.objects.create_superuser('admin', 'admin@cityflow.ci', admin_pwd, role='autorite')
         log.append({'cmd': 'create admin', 'ok': True, 'out': 'admin créé', 'err': ''})
     if not citizens_exist:
         for i in range(5):
-            User.objects.create_user(f'citoyen{i}', f'c{i}@cityflow.ci', 'Citoyen1234!', role='citoyen')
+            User.objects.create_user(f'citoyen{i}', f'c{i}@cityflow.ci',
+                                     f'Cf!{i}xB9@qZ', role='citoyen')
         log.append({'cmd': 'create citoyens', 'ok': True, 'out': '5 citoyens créés', 'err': ''})
 
     # 2. Segments OSM si absent
