@@ -114,9 +114,27 @@ def seed(request):
     return JsonResponse({'status': 'ok', 'log': log})
 
 
+@csrf_exempt
+def cleanup_test_accounts(request):
+    """Supprime les comptes de test pirates. Usage unique, protégé par SEED_TOKEN."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST requis'}, status=405)
+    if not _SEED_TOKEN:
+        return JsonResponse({'error': 'SEED_TOKEN absent'}, status=500)
+    if request.headers.get('X-Seed-Token') != _SEED_TOKEN:
+        return JsonResponse({'error': 'Token invalide'}, status=403)
+    from accounts.models import User
+    deleted = []
+    for username in ['test_role_x', 'test_role_y']:
+        count, _ = User.objects.filter(username=username).delete()
+        deleted.append({'username': username, 'deleted': count})
+    return JsonResponse({'status': 'ok', 'deleted': deleted})
+
+
 urlpatterns = [
     path('health/', health),
     path('seed/', seed),
+    path('cleanup-test-accounts/', cleanup_test_accounts),
     path('admin/', admin.site.urls),
     path('api/auth/', include('accounts.urls')),
     path('api/', include('mobility.urls')),
