@@ -50,7 +50,8 @@ class AuthTests(APITestCase):
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_protected_endpoint_requires_auth(self):
-        res = self.client.get('/api/segments/')
+        # segments/predictions sont publics ; le dashboard autorité doit rester protégé
+        res = self.client.get('/api/dashboard/critical-zones/')
         self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_register_login_are_public(self):

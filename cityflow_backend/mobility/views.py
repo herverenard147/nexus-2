@@ -1,5 +1,6 @@
 from rest_framework import viewsets
 from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.exceptions import NotFound
 
@@ -11,6 +12,7 @@ from .throttles import PredictionsReadThrottle
 class RoadSegmentViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = RoadSegment.objects.all()
     serializer_class = RoadSegmentSerializer
+    permission_classes = [AllowAny]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -32,6 +34,7 @@ class RoadSegmentViewSet(viewsets.ReadOnlyModelViewSet):
 
 class PredictionViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = PredictionSerializer
+    permission_classes = [AllowAny]
     throttle_classes = [PredictionsReadThrottle]
 
     def get_queryset(self):

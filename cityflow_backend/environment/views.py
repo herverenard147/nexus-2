@@ -1,3 +1,4 @@
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -8,6 +9,8 @@ from .serializers import WeatherEventSerializer
 
 
 class WeatherCurrentView(APIView):
+    permission_classes = [AllowAny]
+
     def get(self, request):
         zone = request.query_params.get('zone')
         qs = WeatherEvent.objects.order_by('-timestamp')
@@ -21,6 +24,7 @@ class WeatherCurrentView(APIView):
 
 class WeatherAlertsView(APIView):
     """Retourne les segments zone_inondable avec un WeatherEvent actif (non normal)."""
+    permission_classes = [AllowAny]
 
     def get(self, request):
         zones_alerte = set(
