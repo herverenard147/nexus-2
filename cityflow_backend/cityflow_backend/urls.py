@@ -44,23 +44,30 @@ def seed(request):
     geojson = '/app/docs/data/grand_abidjan.geojson'
     meteo = '/app/docs/data/meteo_abidjan.json'
 
-    steps = [
+    # Étapes rapides (< 2 min au total) — le gros historique est lancé en arrière-plan
+    quick_steps = [
         ['python', 'manage.py', 'import_osm_segments', '--fichier', geojson],
-        ['python', 'manage.py', 'seed_demo_data', '--users', '100', '--days', '30', '--seed', '42'],
         ['python', 'manage.py', 'import_weather_history', '--fichier', meteo],
         ['python', 'manage.py', 'seed_demo_reports', '--seed', '42'],
         ['python', 'manage.py', 'recompute_predictions'],
     ]
     log = []
-    for cmd in steps:
+    for cmd in quick_steps:
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, cwd=base, timeout=900)
+            result = subprocess.run(cmd, capture_output=True, text=True, cwd=base, timeout=110)
             log.append({'cmd': ' '.join(cmd[2:]), 'ok': result.returncode == 0,
                         'out': result.stdout[-500:], 'err': result.stderr[-200:]})
             if result.returncode != 0:
                 return JsonResponse({'status': 'error', 'step': cmd[2], 'log': log}, status=500)
         except Exception as e:
             return JsonResponse({'status': 'error', 'step': cmd[2], 'detail': str(e), 'log': log}, status=500)
+
+    # Historique trafic (3M lignes) en arrière-plan — n'attend pas la fin
+    subprocess.Popen(
+        ['python', 'manage.py', 'seed_demo_data', '--users', '100', '--days', '30', '--seed', '42'],
+        cwd=base, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
+    log.append({'cmd': 'seed_demo_data (lancé en arrière-plan)', 'ok': True, 'out': '', 'err': ''})
 
     return JsonResponse({'status': 'ok', 'log': log})
 
