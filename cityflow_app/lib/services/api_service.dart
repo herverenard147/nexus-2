@@ -168,12 +168,14 @@ class ApiService {
     throw ApiException(res.statusCode, 'Erreur chargement signalements');
   }
 
-  Future<Map<String, dynamic>> getDashboardCriticalZones() async {
+  Future<List<Map<String, dynamic>>> getDashboardCriticalZones() async {
     final res = await http.get(
       Uri.parse('$baseUrl/api/dashboard/critical-zones/'),
       headers: _headers,
     );
-    if (res.statusCode == 200) return jsonDecode(res.body) as Map<String, dynamic>;
+    if (res.statusCode == 200) {
+      return (jsonDecode(res.body) as List).cast<Map<String, dynamic>>();
+    }
     throw ApiException(res.statusCode, 'Erreur dashboard');
   }
 
@@ -186,7 +188,14 @@ class ApiService {
     throw ApiException(res.statusCode, 'Erreur stats');
   }
 
-  Uri getDashboardExportUri() => Uri.parse('$baseUrl/api/dashboard/export/');
+  Future<String> downloadCsvExport() async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/api/dashboard/export/'),
+      headers: _headers,
+    );
+    if (res.statusCode == 200) return res.body;
+    throw ApiException(res.statusCode, 'Erreur export CSV');
+  }
 
   String? get accessToken => _accessToken;
 

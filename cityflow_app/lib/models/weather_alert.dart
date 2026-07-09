@@ -7,7 +7,7 @@ class WeatherAlert {
 
   factory WeatherAlert.fromJson(Map<String, dynamic> j) => WeatherAlert(
         id: j['id'] as int,
-        nom: j['nom'] as String,
-        zone: j['zone'] as String,
+        nom: j['nom'] as String? ?? '',
+        zone: j['zone'] as String? ?? '',
       );
 }
