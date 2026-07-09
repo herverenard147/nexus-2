@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 abstract final class AppColors {
   static const primary = Color(0xFF1E3A8A);
@@ -87,27 +86,29 @@ ThemeData buildAppTheme() {
     surfaceContainerHighest: Color(0xFFE3E1E9),
   );
 
-  final interTextTheme = GoogleFonts.interTextTheme(const TextTheme(
-    displayLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.w700, letterSpacing: -0.64, height: 1.25),
-    headlineMedium: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, letterSpacing: -0.24, height: 1.33),
-    titleLarge: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, height: 1.4),
-    bodyLarge: TextStyle(fontSize: 18, fontWeight: FontWeight.w400, height: 1.56),
-    bodyMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w400, height: 1.5),
-    labelLarge: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: 0.14, height: 1.43),
-    labelSmall: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, letterSpacing: 0.24, height: 1.33),
-  ));
+  const interTextTheme = TextTheme(
+    displayLarge: TextStyle(fontFamily: 'Inter', fontSize: 32, fontWeight: FontWeight.w700, letterSpacing: -0.64, height: 1.25),
+    headlineMedium: TextStyle(fontFamily: 'Inter', fontSize: 24, fontWeight: FontWeight.w700, letterSpacing: -0.24, height: 1.33),
+    titleLarge: TextStyle(fontFamily: 'Inter', fontSize: 20, fontWeight: FontWeight.w600, height: 1.4),
+    bodyLarge: TextStyle(fontFamily: 'Inter', fontSize: 18, fontWeight: FontWeight.w400, height: 1.56),
+    bodyMedium: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w400, height: 1.5),
+    labelLarge: TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w600, letterSpacing: 0.14, height: 1.43),
+    labelSmall: TextStyle(fontFamily: 'Inter', fontSize: 12, fontWeight: FontWeight.w500, letterSpacing: 0.24, height: 1.33),
+  );
 
   return ThemeData(
     useMaterial3: true,
+    fontFamily: 'Inter',
     colorScheme: colorScheme,
     scaffoldBackgroundColor: AppColors.background,
     textTheme: interTextTheme,
-    appBarTheme: AppBarTheme(
+    appBarTheme: const AppBarTheme(
       backgroundColor: AppColors.surface,
       foregroundColor: AppColors.onSurface,
       elevation: 0,
       surfaceTintColor: Colors.transparent,
-      titleTextStyle: GoogleFonts.inter(
+      titleTextStyle: TextStyle(
+        fontFamily: 'Inter',
         fontSize: 20,
         fontWeight: FontWeight.w600,
         color: AppColors.onSurface,
@@ -144,7 +145,7 @@ ThemeData buildAppTheme() {
         borderRadius: AppRadius.cardBorder,
         borderSide: const BorderSide(color: AppColors.bloque, width: 2),
       ),
-      labelStyle: const TextStyle(color: AppColors.onSurfaceVariant, fontSize: 14),
+      labelStyle: const TextStyle(fontFamily: 'Inter', color: AppColors.onSurfaceVariant, fontSize: 14),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
@@ -152,14 +153,14 @@ ThemeData buildAppTheme() {
         foregroundColor: AppColors.onPrimary,
         minimumSize: const Size.fromHeight(52),
         shape: const RoundedRectangleBorder(borderRadius: AppRadius.chipBorder),
-        textStyle: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600),
+        textStyle: const TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w600),
         elevation: 0,
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: AppColors.primary,
-        textStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600),
+        textStyle: const TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w600),
       ),
     ),
     navigationBarTheme: NavigationBarThemeData(
@@ -167,7 +168,8 @@ ThemeData buildAppTheme() {
       indicatorColor: AppColors.primary.withValues(alpha: 0.1),
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         final active = states.contains(WidgetState.selected);
-        return GoogleFonts.inter(
+        return TextStyle(
+          fontFamily: 'Inter',
           fontSize: 12,
           fontWeight: active ? FontWeight.w600 : FontWeight.w400,
           color: active ? AppColors.primary : AppColors.onSurfaceVariant,
