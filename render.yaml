@@ -25,6 +25,20 @@ services:
       - key: CSRF_COOKIE_SECURE
         value: "True"
 
+  - type: static
+    name: cityflow-app
+    buildCommand: bash scripts/build_flutter_web.sh
+    staticPublishPath: cityflow_app/build/web
+    pullRequestPreviewsEnabled: false
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
 databases:
   - name: cityflow-db
     databaseName: cityflow_db
