@@ -5,6 +5,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.http import JsonResponse
 from django.db import connection
+from django.views.decorators.csrf import csrf_exempt
 
 _SEED_TOKEN = os.environ.get('SEED_TOKEN', '')
 
@@ -29,6 +30,7 @@ def health(request):
                              'trace': traceback.format_exc()}, status=500)
 
 
+@csrf_exempt
 def seed(request):
     """Déclenche le pipeline de données. Protégé par SEED_TOKEN."""
     if request.method != 'POST':
