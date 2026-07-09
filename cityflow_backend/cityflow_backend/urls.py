@@ -114,30 +114,9 @@ def seed(request):
     return JsonResponse({'status': 'ok', 'log': log})
 
 
-@csrf_exempt
-def rotate_admin_pwd(request):
-    """Change le mot de passe du superuser admin. Usage unique — à retirer après."""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'POST requis'}, status=405)
-    if not _SEED_TOKEN or request.headers.get('X-Seed-Token') != _SEED_TOKEN:
-        return JsonResponse({'error': 'Token invalide'}, status=403)
-    new_pwd = os.environ.get('ADMIN_PASSWORD')
-    if not new_pwd:
-        return JsonResponse({'error': 'ADMIN_PASSWORD non défini'}, status=500)
-    from accounts.models import User
-    try:
-        u = User.objects.get(username='admin')
-        u.set_password(new_pwd)
-        u.save()
-        return JsonResponse({'status': 'ok', 'message': 'Mot de passe admin mis à jour.'})
-    except User.DoesNotExist:
-        return JsonResponse({'error': 'Utilisateur admin introuvable'}, status=404)
-
-
 urlpatterns = [
     path('health/', health),
     path('seed/', seed),
-    path('rotate-admin-pwd/', rotate_admin_pwd),
     path('admin/', admin.site.urls),
     path('api/auth/', include('accounts.urls')),
     path('api/', include('mobility.urls')),
