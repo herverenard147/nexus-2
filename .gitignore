@@ -10,9 +10,14 @@ build/
 
 # Flutter / Dart
 cityflow_app/.dart_tool/
-cityflow_app/build/
+cityflow_app/build/android/
+cityflow_app/build/ios/
+cityflow_app/build/linux/
+cityflow_app/build/macos/
+cityflow_app/build/windows/
 cityflow_app/.flutter-plugins
 cityflow_app/.flutter-plugins-dependencies
+# build/web est versionné pour le déploiement Render static site
 
 # OS
 .DS_Store
