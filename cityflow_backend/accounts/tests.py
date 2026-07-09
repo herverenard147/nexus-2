@@ -13,20 +13,23 @@ class AuthTests(APITestCase):
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
         self.assertEqual(res.data['role'], 'citoyen')
 
-    def test_register_autorite(self):
+    def test_register_role_forced_to_citoyen(self):
+        # Envoyer role='autorite' ne doit PAS élever les privilèges (fix CVE élévation)
         res = self.client.post(reverse('auth-register'), {
             'username': 'admin', 'email': 'admin@cityflow.ci',
             'password': 'Abidjan2025!', 'role': 'autorite',
         })
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(res.data['role'], 'autorite')
+        self.assertEqual(res.data['role'], 'citoyen')
 
-    def test_register_invalid_role(self):
+    def test_register_invalid_role_ignored(self):
+        # Un role inconnu est ignoré — le compte est créé en citoyen
         res = self.client.post(reverse('auth-register'), {
             'username': 'bad', 'email': 'bad@cityflow.ci',
             'password': 'Abidjan2025!', 'role': 'superadmin',
         })
-        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(res.data['role'], 'citoyen')
 
     def test_login_valid(self):
         User.objects.create_user(username='awa2', password='Abidjan2025!', role='citoyen')

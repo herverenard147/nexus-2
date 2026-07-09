@@ -8,9 +8,10 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('username', 'email', 'password', 'role', 'zone')
+        fields = ('username', 'email', 'password', 'zone')
 
     def create(self, validated_data):
+        validated_data['role'] = 'citoyen'
         return User.objects.create_user(**validated_data)
 
 
