@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
-import '../models/prediction.dart';
+import '../models/commune_stats.dart';
 import '../models/weather_alert.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/weather_banner.dart';
-import 'segment_detail_screen.dart';
+import 'commune_detail_screen.dart';
+
+enum _Sort { criticite, alpha }
 
 class HomeScreen extends StatefulWidget {
   final ApiService api;
@@ -15,55 +17,39 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final List<Prediction> _predictions = [];
+  List<CommuneStats>? _communes;
   List<WeatherAlert> _alerts = [];
   String? _error;
   bool _loading = true;
-  bool _loadingMore = false;
-  bool _hasMore = true;
-  int _offset = 0;
-  static const _limit = 25;
-
-  late final ScrollController _scroll;
+  _Sort _sort = _Sort.criticite;
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _search = '';
 
   @override
   void initState() {
     super.initState();
-    _scroll = ScrollController()..addListener(_onScroll);
+    _searchCtrl.addListener(() => setState(() => _search = _searchCtrl.text));
     _load();
   }
 
   @override
   void dispose() {
-    _scroll.dispose();
+    _searchCtrl.dispose();
     super.dispose();
-  }
-
-  void _onScroll() {
-    if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 300 &&
-        !_loadingMore &&
-        _hasMore) {
-      _loadMore();
-    }
   }
 
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
-      _predictions.clear();
-      _offset = 0;
-      _hasMore = true;
     });
     try {
-      final pageFuture = widget.api.getPredictions(limit: _limit, offset: 0);
+      final communesFuture = widget.api.getCommuneStats();
       final alertsFuture = widget.api.getWeatherAlerts();
-      final page = await pageFuture;
+      final communes = await communesFuture;
       final alerts = await alertsFuture;
       setState(() {
-        _predictions.addAll(page.results);
-        _hasMore = page.hasMore;
-        _offset = page.results.length;
+        _communes = communes;
         _alerts = alerts;
         _loading = false;
       });
@@ -75,20 +61,16 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _loadMore() async {
-    if (_loadingMore || !_hasMore) return;
-    setState(() => _loadingMore = true);
-    try {
-      final page = await widget.api.getPredictions(limit: _limit, offset: _offset);
-      setState(() {
-        _predictions.addAll(page.results);
-        _hasMore = page.hasMore;
-        _offset += page.results.length;
-        _loadingMore = false;
-      });
-    } catch (_) {
-      setState(() => _loadingMore = false);
+  List<CommuneStats> get _filtered {
+    var list = List<CommuneStats>.from(_communes ?? []);
+    if (_search.isNotEmpty) {
+      final q = _search.toLowerCase();
+      list = list.where((c) => c.zone.toLowerCase().contains(q)).toList();
     }
+    if (_sort == _Sort.alpha) {
+      list.sort((a, b) => a.zone.compareTo(b.zone));
+    }
+    return list;
   }
 
   @override
@@ -117,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             CircularProgressIndicator(),
             SizedBox(height: AppSpacing.md),
-            Text('Chargement des prédictions…',
+            Text('Chargement des communes…',
                 style: TextStyle(color: AppColors.onSurfaceVariant)),
           ],
         ),
@@ -146,98 +128,170 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     }
-    if (_predictions.isEmpty) {
-      return const Center(
-        child: Text('Aucune prédiction disponible.',
-            style: TextStyle(color: AppColors.onSurfaceVariant)),
-      );
-    }
 
+    final communes = _filtered;
     final alertZones = _alerts.map((a) => a.zone).toSet();
 
     return RefreshIndicator(
       onRefresh: _load,
-      child: ListView.builder(
-        controller: _scroll,
-        padding: const EdgeInsets.fromLTRB(
-            AppSpacing.md, AppSpacing.lg, AppSpacing.md, AppSpacing.md),
-        // header + segments + footer
-        itemCount: _predictions.length + 2,
-        itemBuilder: (ctx, i) {
-          if (i == 0) return _buildHeader(context);
-          if (i <= _predictions.length) {
-            final pred = _predictions[i - 1];
-            return Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.md),
-              child: _SegmentCard(
-                prediction: pred,
-                hasWeatherAlert: alertZones.contains(pred.segmentZone),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => SegmentDetailScreen(
-                      api: widget.api,
-                      prediction: pred,
+      child: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(child: _buildToolbar(context)),
+          if (communes.isEmpty)
+            const SliverFillRemaining(
+              child: Center(
+                child: Text('Aucune commune trouvée.',
+                    style: TextStyle(color: AppColors.onSurfaceVariant)),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md, 0, AppSpacing.md, AppSpacing.md),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (ctx, i) => Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                    child: _CommuneCard(
+                      stats: communes[i],
+                      hasAlert: alertZones.contains(communes[i].zone),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => CommuneDetailScreen(
+                            api: widget.api,
+                            commune: communes[i],
+                          ),
+                        ),
+                      ),
                     ),
                   ),
+                  childCount: communes.length,
                 ),
               ),
-            );
-          }
-          // Footer
-          if (_loadingMore) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
-              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-            );
-          }
-          if (!_hasMore) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
-              child: Center(
-                child: Text(
-                  'Tous les segments chargés',
-                  style: TextStyle(
-                      fontSize: 12, color: AppColors.onSurfaceVariant),
-                ),
-              ),
-            );
-          }
-          return const SizedBox.shrink();
-        },
+            ),
+        ],
       ),
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildToolbar(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md, AppSpacing.lg, AppSpacing.md, AppSpacing.sm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Prédictions',
+          Text('Communes',
               style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 4),
           const Text(
-            'Segments les plus congestionnés en premier',
+            'Zones de mobilité triées par criticité',
             style: TextStyle(fontSize: 14, color: AppColors.onSurfaceVariant),
           ),
+          const SizedBox(height: AppSpacing.md),
+          TextField(
+            controller: _searchCtrl,
+            decoration: InputDecoration(
+              hintText: 'Rechercher une commune…',
+              hintStyle: const TextStyle(color: AppColors.onSurfaceVariant),
+              prefixIcon: const Icon(Icons.search,
+                  color: AppColors.onSurfaceVariant, size: 20),
+              suffixIcon: _search.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear, size: 18),
+                      onPressed: () => _searchCtrl.clear(),
+                    )
+                  : null,
+              filled: true,
+              fillColor: AppColors.surface,
+              contentPadding: const EdgeInsets.symmetric(vertical: 0),
+              border: OutlineInputBorder(
+                borderRadius: AppRadius.cardBorder,
+                borderSide: BorderSide(color: AppColors.outlineVariant),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: AppRadius.cardBorder,
+                borderSide: BorderSide(color: AppColors.outlineVariant),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: AppRadius.cardBorder,
+                borderSide:
+                    const BorderSide(color: AppColors.primary, width: 1.5),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              const Text('Trier : ',
+                  style: TextStyle(
+                      fontSize: 13, color: AppColors.onSurfaceVariant)),
+              _SortChip(
+                label: 'Criticité',
+                selected: _sort == _Sort.criticite,
+                onTap: () => setState(() => _sort = _Sort.criticite),
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              _SortChip(
+                label: 'A → Z',
+                selected: _sort == _Sort.alpha,
+                onTap: () => setState(() => _sort = _Sort.alpha),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
         ],
       ),
     );
   }
 }
 
-class _SegmentCard extends StatelessWidget {
-  final Prediction prediction;
-  final bool hasWeatherAlert;
+// ── Sort chip ──────────────────────────────────────────────────────────────────
+
+class _SortChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _SortChip(
+      {required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding:
+            const EdgeInsets.symmetric(horizontal: AppSpacing.sm, vertical: 4),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary : AppColors.surface,
+          borderRadius: BorderRadius.circular(100),
+          border: Border.all(
+              color: selected ? AppColors.primary : AppColors.outlineVariant),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'Inter',
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: selected ? AppColors.onPrimary : AppColors.onSurface,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Commune card ───────────────────────────────────────────────────────────────
+
+class _CommuneCard extends StatelessWidget {
+  final CommuneStats stats;
+  final bool hasAlert;
   final VoidCallback onTap;
 
-  const _SegmentCard({
-    required this.prediction,
-    required this.hasWeatherAlert,
-    required this.onTap,
-  });
+  const _CommuneCard(
+      {required this.stats, required this.hasAlert, required this.onTap});
 
   static const _badgeBg = [
     Color(0xFFECFDF5),
@@ -249,16 +303,11 @@ class _SegmentCard extends StatelessWidget {
     Color(0xFFD97706),
     Color(0xFFDC2626),
   ];
-  static const _labels = ['Fluide', 'Dense', 'Bloqué'];
-  static const _trendIcons = [
-    Icons.trending_down,
-    Icons.trending_flat,
-    Icons.trending_up,
-  ];
+  static const _labels = ['Fluide', 'Dense', 'Critique'];
 
   @override
   Widget build(BuildContext context) {
-    final niveau = prediction.niveauRisque.clamp(0, 2);
+    final niveau = stats.niveauRisque;
     final isCritique = niveau == 2;
     final bgColor = _badgeBg[niveau];
     final textColor = _badgeText[niveau];
@@ -279,8 +328,7 @@ class _SegmentCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (isCritique)
-                  Container(width: 4, color: AppColors.bloque),
+                if (isCritique) Container(width: 4, color: AppColors.bloque),
                 Expanded(
                   child: Padding(
                     padding: EdgeInsets.fromLTRB(
@@ -292,40 +340,26 @@ class _SegmentCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Ligne haute : nom + alerte / badge
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                              child: Row(
                                 children: [
-                                  Row(
-                                    children: [
-                                      Flexible(
-                                        child: Text(
-                                          prediction.segmentNom,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 14,
-                                            color: AppColors.onSurface,
-                                          ),
-                                        ),
-                                      ),
-                                      if (hasWeatherAlert) ...[
-                                        const SizedBox(width: 4),
-                                        const Icon(Icons.water_drop,
-                                            color: AppColors.inondation,
-                                            size: 14),
-                                      ],
-                                    ],
-                                  ),
-                                  const SizedBox(height: 2),
                                   Text(
-                                    prediction.segmentZone,
+                                    stats.zone,
                                     style: const TextStyle(
-                                        fontSize: 12,
-                                        color: AppColors.outline),
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 15,
+                                      color: AppColors.onSurface,
+                                    ),
                                   ),
+                                  if (hasAlert) ...[
+                                    const SizedBox(width: 4),
+                                    const Icon(Icons.water_drop,
+                                        color: AppColors.inondation, size: 14),
+                                  ],
                                 ],
                               ),
                             ),
@@ -341,7 +375,7 @@ class _SegmentCard extends StatelessWidget {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Text(
-                                    '${prediction.scorePredit}%',
+                                    '${stats.scoreMoyen}%',
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w700,
@@ -349,28 +383,43 @@ class _SegmentCard extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(width: 4),
-                                  Text(
-                                    _labels[niveau],
-                                    style: TextStyle(
-                                        fontSize: 12, color: textColor),
-                                  ),
+                                  Text(_labels[niveau],
+                                      style: TextStyle(
+                                          fontSize: 12, color: textColor)),
                                 ],
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: AppSpacing.sm),
+                        const SizedBox(height: AppSpacing.xs),
+                        // Ligne basse : nb axes / nb critiques / chevron
                         Row(
                           children: [
-                            Icon(_trendIcons[niveau],
-                                color: textColor, size: 16),
-                            const SizedBox(width: 4),
-                            const Text(
-                              'dans 15 min',
-                              style: TextStyle(
+                            Text(
+                              '${stats.nbSegments} axe${stats.nbSegments > 1 ? 's' : ''}',
+                              style: const TextStyle(
                                   fontSize: 12,
                                   color: AppColors.onSurfaceVariant),
                             ),
+                            if (stats.nbCritiques > 0) ...[
+                              const SizedBox(width: AppSpacing.sm),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.bloque.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(100),
+                                ),
+                                child: Text(
+                                  '${stats.nbCritiques} critique${stats.nbCritiques > 1 ? 's' : ''}',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.bloque,
+                                  ),
+                                ),
+                              ),
+                            ],
                             const Spacer(),
                             const Icon(Icons.chevron_right,
                                 color: AppColors.outline, size: 18),

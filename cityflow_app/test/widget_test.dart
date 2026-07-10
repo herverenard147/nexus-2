@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:cityflow_app/models/commune_stats.dart';
 import 'package:cityflow_app/models/prediction.dart';
 import 'package:cityflow_app/models/weather_alert.dart';
 import 'package:cityflow_app/services/api_service.dart';
@@ -13,42 +14,59 @@ import 'package:cityflow_app/widgets/report_form_sheet.dart';
 // Fakes
 // ---------------------------------------------------------------------------
 class FakeApi extends ApiService {
+  final List<CommuneStats> communes;
   final List<Prediction> preds;
   final List<WeatherAlert> alerts;
   final bool failCreate;
 
-  FakeApi({this.preds = const [], this.alerts = const [], this.failCreate = false})
-      : super(baseUrl: 'http://fake');
+  FakeApi({
+    this.communes = const [],
+    this.preds = const [],
+    this.alerts = const [],
+    this.failCreate = false,
+  }) : super(baseUrl: 'http://fake');
 
   @override
-  Future<PredictionPage> getPredictions({int limit = 25, int offset = 0}) async =>
+  Future<List<CommuneStats>> getCommuneStats() async => communes;
+
+  @override
+  Future<PredictionPage> getPredictions(
+          {int limit = 25, int offset = 0, String? zone}) async =>
       PredictionPage(results: preds, hasMore: false, count: preds.length);
+
   @override
   Future<List<WeatherAlert>> getWeatherAlerts() async => alerts;
+
   @override
   Future<Map<String, dynamic>> createReport(int segmentId, String type) async {
     if (failCreate) throw const ApiException(429, 'Trop de signalements');
-    return {'id': 1, 'segment': segmentId, 'type': type, 'statut': 'actif'};
+    return {'id': 1, 'segment': segmentId, 'type': type, 'statut': 'actif',
+            'nb_confirmations': 1};
   }
 }
 
 class ErrorApi extends ApiService {
   ErrorApi() : super(baseUrl: 'http://fake');
+
   @override
-  Future<PredictionPage> getPredictions({int limit = 25, int offset = 0}) async =>
+  Future<List<CommuneStats>> getCommuneStats() async =>
       throw const ApiException(500, 'Erreur serveur');
+
+  @override
+  Future<PredictionPage> getPredictions(
+          {int limit = 25, int offset = 0, String? zone}) async =>
+      throw const ApiException(500, 'Erreur serveur');
+
   @override
   Future<List<WeatherAlert>> getWeatherAlerts() async => [];
 }
 
-Prediction _pred({int score = 30}) => Prediction(
-      id: 1,
-      segmentId: 42,
-      segmentNom: 'Boulevard Latrille',
-      segmentZone: 'Cocody',
-      scorePredit: score,
-      facteurs: {'effet_meteo': 'aucun', 'effet_signalement': 'aucun'},
-      versionModele: 'v1',
+CommuneStats _commune({int score = 30}) => CommuneStats(
+      zone: 'Cocody',
+      nbSegments: 5,
+      scoreMoyen: score,
+      scoreMax: score + 10,
+      nbCritiques: 0,
     );
 
 // ---------------------------------------------------------------------------
@@ -58,14 +76,16 @@ void main() {
   group('HomeScreen', () {
     testWidgets('affiche CircularProgressIndicator pendant le chargement',
         (tester) async {
-      await tester.pumpWidget(MaterialApp(home: HomeScreen(api: FakeApi(preds: [_pred()]))));
+      await tester.pumpWidget(
+          MaterialApp(home: HomeScreen(api: FakeApi(communes: [_commune()]))));
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
-    testWidgets('affiche les segments après chargement', (tester) async {
-      await tester.pumpWidget(MaterialApp(home: HomeScreen(api: FakeApi(preds: [_pred()]))));
+    testWidgets('affiche les communes après chargement', (tester) async {
+      await tester.pumpWidget(
+          MaterialApp(home: HomeScreen(api: FakeApi(communes: [_commune()]))));
       await tester.pumpAndSettle();
-      expect(find.text('Boulevard Latrille'), findsOneWidget);
+      expect(find.text('Cocody'), findsOneWidget);
     });
 
     testWidgets('affiche état erreur si API échoue', (tester) async {
