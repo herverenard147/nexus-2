@@ -3,7 +3,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .serializers import RegisterSerializer, UserSerializer
+from .serializers import CityFlowTokenSerializer, RegisterSerializer, UserSerializer
 from .throttles import LoginRateThrottle
 
 
@@ -21,3 +21,4 @@ class RegisterView(generics.CreateAPIView):
 class LoginView(TokenObtainPairView):
     permission_classes = [AllowAny]
     throttle_classes = [LoginRateThrottle]
+    serializer_class = CityFlowTokenSerializer

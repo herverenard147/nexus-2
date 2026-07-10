@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import 'dashboard_screen.dart';
 import 'login_screen.dart';
 import 'main_shell.dart';
 
@@ -24,9 +25,12 @@ class _SplashScreenState extends State<SplashScreen> {
     await widget.api.restoreSession();
     if (!mounted) return;
     if (widget.api.isAuthenticated) {
+      final dest = widget.api.userRole == 'autorite'
+          ? DashboardScreen(api: widget.api)
+          : MainShell(api: widget.api);
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => MainShell(api: widget.api)),
+        MaterialPageRoute(builder: (_) => dest),
       );
     } else {
       Navigator.pushReplacement(
