@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import 'home_screen.dart';
 import 'login_screen.dart';
 import 'reports_management_screen.dart';
 
@@ -87,6 +88,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.map_outlined, color: AppColors.onPrimary),
+            tooltip: 'Tous les axes',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => AllAxesScreen(api: widget.api)),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.list_alt_outlined, color: AppColors.onPrimary),
             tooltip: 'Gestion des signalements',
@@ -512,6 +522,36 @@ class _ExportCardState extends State<_ExportCard> {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ── Accès aux prédictions depuis l'espace autorité ─────────────────────────────
+// Wrapper Scaffold autour de HomeScreen (écran citoyen) : zéro réécriture.
+// Commune → CommuneDetailScreen → SegmentDetailScreen, navigation standard.
+
+class AllAxesScreen extends StatelessWidget {
+  final ApiService api;
+  const AllAxesScreen({super.key, required this.api});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: AppColors.primary,
+        foregroundColor: AppColors.onPrimary,
+        title: const Text(
+          'Tous les axes',
+          style: TextStyle(
+            fontFamily: 'Inter',
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: AppColors.onPrimary,
+          ),
+        ),
+        iconTheme: const IconThemeData(color: AppColors.onPrimary),
+      ),
+      body: HomeScreen(api: api),
     );
   }
 }
