@@ -39,9 +39,9 @@ class _ReportScreenState extends State<ReportScreen> {
       _error = null;
     });
     try {
-      final preds = await widget.api.getPredictions();
+      final page = await widget.api.getPredictions(limit: 100, offset: 0);
       setState(() {
-        _segments = preds;
+        _segments = page.results;
         _loading = false;
       });
     } catch (e) {

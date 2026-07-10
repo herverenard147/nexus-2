@@ -1,5 +1,6 @@
 from rest_framework import viewsets
 from rest_framework.decorators import action
+from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.exceptions import NotFound
@@ -7,6 +8,11 @@ from rest_framework.exceptions import NotFound
 from .models import RoadSegment, TrafficRecord, Prediction
 from .serializers import RoadSegmentSerializer, TrafficRecordSerializer, PredictionSerializer
 from .throttles import PredictionsReadThrottle
+
+
+class PredictionPagination(LimitOffsetPagination):
+    default_limit = 25
+    max_limit = 100
 
 
 class RoadSegmentViewSet(viewsets.ReadOnlyModelViewSet):
@@ -36,6 +42,7 @@ class PredictionViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = PredictionSerializer
     permission_classes = [AllowAny]
     throttle_classes = [PredictionsReadThrottle]
+    pagination_class = PredictionPagination
 
     def get_queryset(self):
         if self.action == 'list':
@@ -45,7 +52,7 @@ class PredictionViewSet(viewsets.ReadOnlyModelViewSet):
                 .annotate(latest_id=Max('id'))
                 .values_list('latest_id', flat=True)
             )
-            return Prediction.objects.filter(id__in=latest_ids)
+            return Prediction.objects.filter(id__in=latest_ids).order_by('-score_predit')
         segment_id = self.kwargs.get('pk')
         if segment_id and not RoadSegment.objects.filter(pk=segment_id).exists():
             raise NotFound(f"Segment {segment_id} introuvable.")

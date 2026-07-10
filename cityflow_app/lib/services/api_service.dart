@@ -101,14 +101,19 @@ class ApiService {
     await _storage.delete(key: _keyRefresh);
   }
 
-  Future<List<Prediction>> getPredictions() async {
-    final res = await http.get(
-      Uri.parse('$baseUrl/api/predictions/'),
-      headers: _headers,
+  Future<PredictionPage> getPredictions({int limit = 25, int offset = 0}) async {
+    final uri = Uri.parse('$baseUrl/api/predictions/').replace(
+      queryParameters: {'limit': '$limit', 'offset': '$offset'},
     );
+    final res = await http.get(uri, headers: _headers);
     if (res.statusCode == 200) {
-      final list = jsonDecode(res.body) as List;
-      return list.map((e) => Prediction.fromJson(e as Map<String, dynamic>)).toList();
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      final list = data['results'] as List;
+      return PredictionPage(
+        results: list.map((e) => Prediction.fromJson(e as Map<String, dynamic>)).toList(),
+        hasMore: data['next'] != null,
+        count: (data['count'] as num).toInt(),
+      );
     }
     throw ApiException(res.statusCode, 'Erreur chargement prédictions');
   }
@@ -206,6 +211,17 @@ class ApiService {
     } catch (_) {}
     return 'Erreur inconnue';
   }
+}
+
+class PredictionPage {
+  final List<Prediction> results;
+  final bool hasMore;
+  final int count;
+  const PredictionPage({
+    required this.results,
+    required this.hasMore,
+    required this.count,
+  });
 }
 
 class ApiException implements Exception {

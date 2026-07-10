@@ -15,30 +15,56 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  List<Prediction>? _predictions;
+  final List<Prediction> _predictions = [];
   List<WeatherAlert> _alerts = [];
   String? _error;
   bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+  int _offset = 0;
+  static const _limit = 25;
+
+  late final ScrollController _scroll;
 
   @override
   void initState() {
     super.initState();
+    _scroll = ScrollController()..addListener(_onScroll);
     _load();
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 300 &&
+        !_loadingMore &&
+        _hasMore) {
+      _loadMore();
+    }
   }
 
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
+      _predictions.clear();
+      _offset = 0;
+      _hasMore = true;
     });
     try {
-      final results = await Future.wait([
-        widget.api.getPredictions(),
-        widget.api.getWeatherAlerts(),
-      ]);
+      final pageFuture = widget.api.getPredictions(limit: _limit, offset: 0);
+      final alertsFuture = widget.api.getWeatherAlerts();
+      final page = await pageFuture;
+      final alerts = await alertsFuture;
       setState(() {
-        _predictions = results[0] as List<Prediction>;
-        _alerts = results[1] as List<WeatherAlert>;
+        _predictions.addAll(page.results);
+        _hasMore = page.hasMore;
+        _offset = page.results.length;
+        _alerts = alerts;
         _loading = false;
       });
     } catch (e) {
@@ -46,6 +72,22 @@ class _HomeScreenState extends State<HomeScreen> {
         _error = e.toString();
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+    try {
+      final page = await widget.api.getPredictions(limit: _limit, offset: _offset);
+      setState(() {
+        _predictions.addAll(page.results);
+        _hasMore = page.hasMore;
+        _offset += page.results.length;
+        _loadingMore = false;
+      });
+    } catch (_) {
+      setState(() => _loadingMore = false);
     }
   }
 
@@ -104,7 +146,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     }
-    if (_predictions == null || _predictions!.isEmpty) {
+    if (_predictions.isEmpty) {
       return const Center(
         child: Text('Aucune prédiction disponible.',
             style: TextStyle(color: AppColors.onSurfaceVariant)),
@@ -116,28 +158,52 @@ class _HomeScreenState extends State<HomeScreen> {
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView.builder(
+        controller: _scroll,
         padding: const EdgeInsets.fromLTRB(
             AppSpacing.md, AppSpacing.lg, AppSpacing.md, AppSpacing.md),
-        itemCount: _predictions!.length + 1,
+        // header + segments + footer
+        itemCount: _predictions.length + 2,
         itemBuilder: (ctx, i) {
           if (i == 0) return _buildHeader(context);
-          final pred = _predictions![i - 1];
-          return Padding(
-            padding: const EdgeInsets.only(bottom: AppSpacing.md),
-            child: _SegmentCard(
-              prediction: pred,
-              hasWeatherAlert: alertZones.contains(pred.segmentZone),
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => SegmentDetailScreen(
-                    api: widget.api,
-                    prediction: pred,
+          if (i <= _predictions.length) {
+            final pred = _predictions[i - 1];
+            return Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.md),
+              child: _SegmentCard(
+                prediction: pred,
+                hasWeatherAlert: alertZones.contains(pred.segmentZone),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SegmentDetailScreen(
+                      api: widget.api,
+                      prediction: pred,
+                    ),
                   ),
                 ),
               ),
-            ),
-          );
+            );
+          }
+          // Footer
+          if (_loadingMore) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            );
+          }
+          if (!_hasMore) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
+              child: Center(
+                child: Text(
+                  'Tous les segments chargés',
+                  style: TextStyle(
+                      fontSize: 12, color: AppColors.onSurfaceVariant),
+                ),
+              ),
+            );
+          }
+          return const SizedBox.shrink();
         },
       ),
     );
@@ -153,7 +219,7 @@ class _HomeScreenState extends State<HomeScreen> {
               style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 4),
           const Text(
-            'Prévisions de trafic en temps réel',
+            'Segments les plus congestionnés en premier',
             style: TextStyle(fontSize: 14, color: AppColors.onSurfaceVariant),
           ),
         ],
@@ -173,16 +239,15 @@ class _SegmentCard extends StatelessWidget {
     required this.onTap,
   });
 
-  // Couleurs des badges pill (fond teinté / texte) par niveau de risque
   static const _badgeBg = [
-    Color(0xFFECFDF5), // fluide — emerald-50
-    Color(0xFFFFFBEB), // dense  — amber-50
-    Color(0xFFFEF2F2), // bloqué — red-50
+    Color(0xFFECFDF5),
+    Color(0xFFFFFBEB),
+    Color(0xFFFEF2F2),
   ];
   static const _badgeText = [
-    Color(0xFF059669), // fluide — emerald-600
-    Color(0xFFD97706), // dense  — amber-600
-    Color(0xFFDC2626), // bloqué — red-600
+    Color(0xFF059669),
+    Color(0xFFD97706),
+    Color(0xFFDC2626),
   ];
   static const _labels = ['Fluide', 'Dense', 'Bloqué'];
   static const _trendIcons = [
@@ -214,7 +279,6 @@ class _SegmentCard extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Accent gauche rouge sur les segments critiques
                 if (isCritique)
                   Container(width: 4, color: AppColors.bloque),
                 Expanded(
@@ -228,7 +292,6 @@ class _SegmentCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Ligne haute : nom+zone / badge
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -267,7 +330,6 @@ class _SegmentCard extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(width: AppSpacing.sm),
-                            // Badge pill rounded-full teinté
                             Container(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: AppSpacing.sm, vertical: 4),
@@ -298,7 +360,6 @@ class _SegmentCard extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: AppSpacing.sm),
-                        // Ligne basse : icône trend + "dans 15 min" + chevron
                         Row(
                           children: [
                             Icon(_trendIcons[niveau],

@@ -21,7 +21,8 @@ class FakeApi extends ApiService {
       : super(baseUrl: 'http://fake');
 
   @override
-  Future<List<Prediction>> getPredictions() async => preds;
+  Future<PredictionPage> getPredictions({int limit = 25, int offset = 0}) async =>
+      PredictionPage(results: preds, hasMore: false, count: preds.length);
   @override
   Future<List<WeatherAlert>> getWeatherAlerts() async => alerts;
   @override
@@ -34,7 +35,7 @@ class FakeApi extends ApiService {
 class ErrorApi extends ApiService {
   ErrorApi() : super(baseUrl: 'http://fake');
   @override
-  Future<List<Prediction>> getPredictions() async =>
+  Future<PredictionPage> getPredictions({int limit = 25, int offset = 0}) async =>
       throw const ApiException(500, 'Erreur serveur');
   @override
   Future<List<WeatherAlert>> getWeatherAlerts() async => [];
