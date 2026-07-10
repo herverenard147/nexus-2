@@ -103,21 +103,66 @@ def seed(request):
         except Exception as e:
             return JsonResponse({'status': 'error', 'step': cmd[2], 'detail': str(e), 'log': log}, status=500)
 
-    # 3. Historique trafic (3M lignes) en arrière-plan — n'attend pas la fin
+    # 3. Historique trafic léger en arrière-plan — n'attend pas la fin
     if not history_exist:
         subprocess.Popen(
-            ['python', 'manage.py', 'seed_demo_data', '--users', '100', '--days', '30', '--seed', '42'],
+            ['python', 'manage.py', 'seed_traffic_minimal', '--seed', '42'],
             cwd=base, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         )
-        log.append({'cmd': 'seed_demo_data (arrière-plan)', 'ok': True, 'out': '', 'err': ''})
+        log.append({'cmd': 'seed_traffic_minimal (arrière-plan)', 'ok': True, 'out': '', 'err': ''})
 
     return JsonResponse({'status': 'ok', 'log': log})
+
+
+@csrf_exempt
+def seed_traffic(request):
+    """Lance seed_traffic_minimal + recompute_predictions en arrière-plan. Protégé SEED_TOKEN."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST requis'}, status=405)
+    if not _SEED_TOKEN or request.headers.get('X-Seed-Token') != _SEED_TOKEN:
+        return JsonResponse({'error': 'Token invalide'}, status=403)
+    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    subprocess.Popen(
+        ['python', 'manage.py', 'seed_traffic_minimal', '--clear', '--seed', '42'],
+        cwd=base, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
+    return JsonResponse({
+        'status': 'ok',
+        'message': (
+            'seed_traffic_minimal lancé en arrière-plan (~60 s). '
+            'Appelez ensuite /recompute/ pour rafraîchir les prédictions.'
+        ),
+    })
+
+
+@csrf_exempt
+def recompute(request):
+    """Recalcule toutes les prédictions (synchrone, ~30 s). Protégé SEED_TOKEN."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST requis'}, status=405)
+    if not _SEED_TOKEN or request.headers.get('X-Seed-Token') != _SEED_TOKEN:
+        return JsonResponse({'error': 'Token invalide'}, status=403)
+    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    try:
+        result = subprocess.run(
+            ['python', 'manage.py', 'recompute_predictions'],
+            capture_output=True, text=True, cwd=base, timeout=110,
+        )
+        return JsonResponse({
+            'status': 'ok' if result.returncode == 0 else 'error',
+            'stdout': result.stdout[-1000:],
+            'stderr': result.stderr[-300:],
+        }, status=200 if result.returncode == 0 else 500)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'detail': str(e)}, status=500)
 
 
 
 urlpatterns = [
     path('health/', health),
     path('seed/', seed),
+    path('seed-traffic/', seed_traffic),
+    path('recompute/', recompute),
     path('admin/', admin.site.urls),
     path('api/auth/', include('accounts.urls')),
     path('api/', include('mobility.urls')),
