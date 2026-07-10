@@ -177,12 +177,35 @@ def seed_and_recompute(request):
 
 
 
+@csrf_exempt
+def fix_zones(request):
+    """Corrige zone=nom_de_rue → commune. Synchrone (~5 s). Protégé SEED_TOKEN."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST requis'}, status=405)
+    if not _SEED_TOKEN or request.headers.get('X-Seed-Token') != _SEED_TOKEN:
+        return JsonResponse({'error': 'Token invalide'}, status=403)
+    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    try:
+        result = subprocess.run(
+            ['python', 'manage.py', 'fix_zones'],
+            capture_output=True, text=True, cwd=base, timeout=60,
+        )
+        return JsonResponse({
+            'status': 'ok' if result.returncode == 0 else 'error',
+            'stdout': result.stdout[-2000:],
+            'stderr': result.stderr[-300:],
+        }, status=200 if result.returncode == 0 else 500)
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'detail': str(e)}, status=500)
+
+
 urlpatterns = [
     path('health/', health),
     path('seed/', seed),
     path('seed-traffic/', seed_traffic),
     path('recompute/', recompute),
     path('seed-and-recompute/', seed_and_recompute),
+    path('fix-zones/', fix_zones),
     path('admin/', admin.site.urls),
     path('api/auth/', include('accounts.urls')),
     path('api/', include('mobility.urls')),

@@ -27,7 +27,7 @@ ZONES_INONDABLES = {'yopougon', 'abobo', 'attécoubé', 'attecoube', 'nord'}
 
 
 def _zone_from_feature(props):
-    for key in ('addr:city', 'is_in:city', 'addr:suburb', 'name'):
+    for key in ('addr:city', 'is_in:city', 'addr:suburb'):
         val = props.get(key, '')
         if val:
             return val
