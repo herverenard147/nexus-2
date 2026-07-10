@@ -47,7 +47,7 @@ def predict_congestion(segment_id, horizon_min=15, timestamp=None):
         segment=segment,
         source='simule',
         timestamp__hour=heure,
-        timestamp__week_day=(jour_semaine + 2) % 7 + 1,  # Django: 1=Sunday
+        timestamp__week_day=(jour_semaine + 1) % 7 + 1,  # Django: 1=Sunday
     )
     count = historique.count()
     if count == 0:
@@ -56,8 +56,9 @@ def predict_congestion(segment_id, horizon_min=15, timestamp=None):
         score = 50
     else:
         facteurs['donnees_insuffisantes'] = False
-        score = historique.values_list('niveau_congestion', flat=True)
-        score = sum(score) / count
+        values = list(historique.values_list('niveau_congestion', flat=True))
+        score = sum(values) / count
+        facteurs['historique_moyen'] = round(score)
 
     # 2. Facteur météo (uniquement si zone_inondable)
     facteurs['effet_meteo'] = 'aucun'
