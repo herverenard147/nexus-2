@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import 'login_screen.dart';
@@ -43,16 +44,10 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
+            SvgPicture.asset(
+              'assets/images/logo_cityflow.svg',
               width: 88,
               height: 88,
-              decoration: BoxDecoration(
-                color: AppColors.onPrimary,
-                borderRadius: AppRadius.cardBorder,
-              ),
-              child: const Center(
-                child: Icon(Icons.traffic, size: 48, color: AppColors.primary),
-              ),
             ),
             const SizedBox(height: AppSpacing.lg),
             const Text(

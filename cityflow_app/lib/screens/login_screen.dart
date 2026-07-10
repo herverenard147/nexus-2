@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import 'register_screen.dart';
@@ -217,14 +218,10 @@ class _Logo extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Container(
+        SvgPicture.asset(
+          'assets/images/logo_cityflow.svg',
           width: 48,
           height: 48,
-          decoration: const BoxDecoration(
-            color: AppColors.primary,
-            borderRadius: AppRadius.chipBorder,
-          ),
-          child: const Icon(Icons.traffic, color: AppColors.onPrimary, size: 28),
         ),
         const SizedBox(width: AppSpacing.sm),
         Column(
@@ -236,7 +233,7 @@ class _Logo extends StatelessWidget {
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: AppColors.primaryDeep)),
-            Text('Abidjan',
+            const Text('Abidjan',
                 style: TextStyle(
                     fontFamily: 'Inter',
                     fontSize: 12,
