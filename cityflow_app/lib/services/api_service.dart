@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import '../models/commune_stats.dart';
 import '../models/prediction.dart';
 import '../models/segment.dart';
 import '../models/weather_alert.dart';
@@ -101,9 +102,23 @@ class ApiService {
     await _storage.delete(key: _keyRefresh);
   }
 
-  Future<PredictionPage> getPredictions({int limit = 25, int offset = 0}) async {
+  Future<List<CommuneStats>> getCommuneStats() async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/api/communes/'),
+      headers: _headers,
+    );
+    if (res.statusCode == 200) {
+      final list = jsonDecode(res.body) as List;
+      return list.map((e) => CommuneStats.fromJson(e as Map<String, dynamic>)).toList();
+    }
+    throw ApiException(res.statusCode, 'Erreur chargement communes');
+  }
+
+  Future<PredictionPage> getPredictions({int limit = 25, int offset = 0, String? zone}) async {
+    final params = <String, String>{'limit': '$limit', 'offset': '$offset'};
+    if (zone != null) params['zone'] = zone;
     final uri = Uri.parse('$baseUrl/api/predictions/').replace(
-      queryParameters: {'limit': '$limit', 'offset': '$offset'},
+      queryParameters: params,
     );
     final res = await http.get(uri, headers: _headers);
     if (res.statusCode == 200) {
