@@ -104,6 +104,19 @@ class SegmentDetailScreen extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: AppSpacing.sm),
+                      // Phrase de synthèse
+                      _GlassCard(
+                        child: Text(
+                          _synthesis(pred, niveau),
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: _badgeText[niveau],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
                       // Glass-cards des facteurs
                       _buildFactorCards(pred, niveau),
                       // Warning données insuffisantes
@@ -168,40 +181,74 @@ class SegmentDetailScreen extends StatelessWidget {
     );
   }
 
+  // ── Synthèse en langage naturel ──────────────────────────────────────────
+  String _synthesis(Prediction pred, int niveau) {
+    final meteo = pred.facteurs['effet_meteo'] as String? ?? 'aucun';
+    final nbSig = (pred.facteurs['nb_signalements'] as num?)?.toInt() ?? 0;
+
+    if (meteo == 'fort' && nbSig > 0) {
+      return 'Fortes pluies sur une zone inondable et $nbSig signalement${nbSig > 1 ? 's' : ''} en cours — circulation très dégradée.';
+    }
+    if (meteo == 'fort') {
+      return 'Fortes pluies sur une zone inondable — risque de blocage élevé.';
+    }
+    if (meteo == 'modéré' && nbSig > 0) {
+      return 'Pluies modérées et $nbSig signalement${nbSig > 1 ? 's' : ''} actif${nbSig > 1 ? 's' : ''} — trafic perturbé.';
+    }
+    if (meteo == 'modéré') {
+      return 'Pluies modérées en cours — impact sur la fluidité du trafic.';
+    }
+    if (nbSig > 0 && niveau == 2) {
+      return 'Circulation bloquée : $nbSig signalement${nbSig > 1 ? 's' : ''} citoyen${nbSig > 1 ? 's' : ''} actif${nbSig > 1 ? 's' : ''} sur cet axe.';
+    }
+    if (nbSig > 0) {
+      return '$nbSig signalement${nbSig > 1 ? 's' : ''} citoyen${nbSig > 1 ? 's' : ''} actif${nbSig > 1 ? 's' : ''} — trafic perturbé.';
+    }
+    if (niveau == 0) return 'Trafic fluide : aucun incident ni intempérie sur cet axe.';
+    if (niveau == 1) return 'Trafic dense : affluence habituelle à cette heure.';
+    return 'Circulation très chargée — évitez cet axe si possible.';
+  }
+
+  // ── Cartes de facteurs ────────────────────────────────────────────────────
   Widget _buildFactorCards(Prediction pred, int niveau) {
     final valueColor = _badgeText[niveau];
     final cards = <_FactorEntry>[];
 
-    final hist = pred.facteurs['historique_moyen'];
-    if (hist != null) {
-      cards.add(_FactorEntry(
-          icon: Icons.schedule_outlined,
-          label: 'Trafic historique',
-          value: hist));
-    }
+    // Historique
+    final hist = (pred.facteurs['historique_moyen'] as num?)?.toInt();
+    cards.add(_FactorEntry(
+      icon: Icons.schedule_outlined,
+      label: 'Trafic historique (même heure)',
+      value: hist != null ? '$hist / 100' : 'insuffisant',
+    ));
 
-    final meteo = pred.facteurs['effet_meteo'];
-    if (meteo != null) {
-      cards.add(_FactorEntry(
-          icon: Icons.water_drop_outlined,
-          label: 'Conditions météo',
-          value: meteo));
-    }
+    // Météo
+    final meteo = pred.facteurs['effet_meteo'] as String? ?? 'aucun';
+    final deltaMeteo = (pred.facteurs['delta_meteo_pts'] as num?)?.toInt() ?? 0;
+    final meteoMsg = switch (meteo) {
+      'fort' => 'Fortes pluies en cours${deltaMeteo > 0 ? ' : +$deltaMeteo pts' : ''}',
+      'modéré' => 'Pluies modérées${deltaMeteo > 0 ? ' : +$deltaMeteo pts' : ''}',
+      _ => 'Pas de pluie signalée sur cet axe',
+    };
+    cards.add(_FactorEntry(
+      icon: meteo == 'aucun'
+          ? Icons.wb_sunny_outlined
+          : Icons.water_drop_outlined,
+      label: 'Conditions météo',
+      value: meteoMsg,
+    ));
 
-    final sig = pred.facteurs['effet_signalement'];
-    if (sig != null) {
-      cards.add(_FactorEntry(
-          icon: Icons.add_alert_outlined,
-          label: 'Signalements actifs',
-          value: sig));
-    }
-
-    if (cards.isEmpty) {
-      cards.add(_FactorEntry(
-          icon: Icons.bar_chart_outlined,
-          label: 'Score calculé',
-          value: '${pred.scorePredit}/100'));
-    }
+    // Signalements
+    final nbSig = (pred.facteurs['nb_signalements'] as num?)?.toInt() ?? 0;
+    final deltaSig = (pred.facteurs['delta_signalement_pts'] as num?)?.toInt() ?? 0;
+    final sigMsg = nbSig == 0
+        ? 'Aucun incident signalé récemment'
+        : '$nbSig signalement${nbSig > 1 ? 's' : ''} actif${nbSig > 1 ? 's' : ''}${deltaSig > 0 ? ' : +$deltaSig pts' : ''}';
+    cards.add(_FactorEntry(
+      icon: nbSig == 0 ? Icons.check_circle_outline : Icons.add_alert_outlined,
+      label: 'Signalements citoyens',
+      value: sigMsg,
+    ));
 
     return Column(
       children: [
@@ -257,21 +304,7 @@ class _GlassFactorCard extends StatelessWidget {
   final _FactorEntry entry;
   final Color valueColor;
 
-  const _GlassFactorCard(
-      {required this.entry, required this.valueColor});
-
-  String _format(dynamic v) {
-    if (v == null) return '—';
-    if (v is double) {
-      if (v == 0) return 'neutre';
-      final pct = (v * 100).round();
-      return pct > 0 ? '+$pct%' : '$pct%';
-    }
-    if (v is int) {
-      return v > 0 ? '+$v pts' : '$v pts';
-    }
-    return v.toString();
-  }
+  const _GlassFactorCard({required this.entry, required this.valueColor});
 
   @override
   Widget build(BuildContext context) {
@@ -280,6 +313,7 @@ class _GlassFactorCard extends StatelessWidget {
       child: BackdropFilter(
         filter: ui.ImageFilter.blur(sigmaX: 8, sigmaY: 8),
         child: Container(
+          width: double.infinity,
           padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.md, vertical: AppSpacing.sm),
           decoration: BoxDecoration(
@@ -288,26 +322,38 @@ class _GlassFactorCard extends StatelessWidget {
             border: Border.all(color: Colors.white.withValues(alpha: 0.6)),
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(entry.icon, size: 18, color: AppColors.primary),
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Icon(entry.icon, size: 16, color: AppColors.primary),
+              ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
-                child: Text(
-                  entry.label,
-                  style: const TextStyle(
-                    fontFamily: 'Inter',
-                    fontSize: 13,
-                    color: AppColors.onSurface,
-                  ),
-                ),
-              ),
-              Text(
-                _format(entry.value),
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: valueColor,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      entry.label,
+                      style: const TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.onSurfaceVariant,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      entry.value.toString(),
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: valueColor,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
