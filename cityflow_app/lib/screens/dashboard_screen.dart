@@ -60,6 +60,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Scaffold(
       backgroundColor: AppColors.surfaceContainerLow,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.onPrimary,
         title: Row(
