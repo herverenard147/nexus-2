@@ -4,10 +4,10 @@ import '../theme/app_theme.dart';
 import '../models/prediction.dart';
 
 const _kTypes = [
-  ('embouteillage', Icons.traffic, 'Embouteillage'),
   ('accident', Icons.car_crash_outlined, 'Accident'),
-  ('travaux', Icons.construction_outlined, 'Travaux'),
-  ('inondation', Icons.water_outlined, 'Inondation'),
+  ('nid_de_poule', Icons.warning_amber_outlined, 'Nid de poule'),
+  ('route_barree', Icons.block_outlined, 'Route barrée'),
+  ('vehicule_en_panne', Icons.directions_car_outlined, 'Véhicule en panne'),
 ];
 
 class ReportScreen extends StatefulWidget {
@@ -23,7 +23,7 @@ class _ReportScreenState extends State<ReportScreen> {
   bool _loading = true;
   String? _error;
   Prediction? _selected;
-  String _type = 'embouteillage';
+  String _type = 'accident';
   bool _submitting = false;
   _SubmitResult? _result;
 
