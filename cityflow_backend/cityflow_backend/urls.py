@@ -137,24 +137,43 @@ def seed_traffic(request):
 
 @csrf_exempt
 def recompute(request):
-    """Recalcule toutes les prédictions (synchrone, ~30 s). Protégé SEED_TOKEN."""
+    """Recalcule toutes les prédictions en arrière-plan (~3 min). Protégé SEED_TOKEN."""
     if request.method != 'POST':
         return JsonResponse({'error': 'POST requis'}, status=405)
     if not _SEED_TOKEN or request.headers.get('X-Seed-Token') != _SEED_TOKEN:
         return JsonResponse({'error': 'Token invalide'}, status=403)
     base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    try:
-        result = subprocess.run(
-            ['python', 'manage.py', 'recompute_predictions'],
-            capture_output=True, text=True, cwd=base, timeout=110,
-        )
-        return JsonResponse({
-            'status': 'ok' if result.returncode == 0 else 'error',
-            'stdout': result.stdout[-1000:],
-            'stderr': result.stderr[-300:],
-        }, status=200 if result.returncode == 0 else 500)
-    except Exception as e:
-        return JsonResponse({'status': 'error', 'detail': str(e)}, status=500)
+    subprocess.Popen(
+        ['python', 'manage.py', 'recompute_predictions'],
+        cwd=base, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    return JsonResponse({
+        'status': 'ok',
+        'message': 'recompute_predictions lancé en arrière-plan (~3 min pour 4206 segments).',
+    })
+
+
+@csrf_exempt
+def seed_and_recompute(request):
+    """Chaîne seed_traffic_minimal + recompute_predictions en arrière-plan. Protégé SEED_TOKEN."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST requis'}, status=405)
+    if not _SEED_TOKEN or request.headers.get('X-Seed-Token') != _SEED_TOKEN:
+        return JsonResponse({'error': 'Token invalide'}, status=403)
+    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    subprocess.Popen(
+        ['bash', '-c',
+         'python manage.py seed_traffic_minimal --clear --seed 42 '
+         '&& python manage.py recompute_predictions'],
+        cwd=base, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    return JsonResponse({
+        'status': 'ok',
+        'message': (
+            'Pipeline lancé en arrière-plan : seed (~60 s) puis recompute (~3 min). '
+            'Vérifiez /api/predictions/ dans 5 min.'
+        ),
+    })
 
 
 
@@ -163,6 +182,7 @@ urlpatterns = [
     path('seed/', seed),
     path('seed-traffic/', seed_traffic),
     path('recompute/', recompute),
+    path('seed-and-recompute/', seed_and_recompute),
     path('admin/', admin.site.urls),
     path('api/auth/', include('accounts.urls')),
     path('api/', include('mobility.urls')),
