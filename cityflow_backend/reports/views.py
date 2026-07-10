@@ -4,7 +4,7 @@ from rest_framework.response import Response
 
 from .models import Report
 from .permissions import IsAutorite
-from .serializers import ReportSerializer, ReportCreateSerializer
+from .serializers import ReportSerializer, ReportCreateSerializer, ReportPatchSerializer
 from .throttles import ReportCreateThrottle
 
 
@@ -40,7 +40,11 @@ class ReportListCreateView(generics.ListCreateAPIView):
 
 class ReportDetailView(generics.RetrieveUpdateAPIView):
     queryset = Report.objects.all()
-    serializer_class = ReportSerializer
+
+    def get_serializer_class(self):
+        if self.request.method == 'PATCH':
+            return ReportPatchSerializer
+        return ReportSerializer
 
     def get_permissions(self):
         if self.request.method == 'PATCH':

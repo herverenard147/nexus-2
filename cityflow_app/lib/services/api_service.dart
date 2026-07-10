@@ -186,6 +186,17 @@ class ApiService {
     throw ApiException(res.statusCode, _parseError(res.body));
   }
 
+  Future<void> updateReport(int id, String statut) async {
+    final res = await http.patch(
+      Uri.parse('$baseUrl/api/reports/$id/'),
+      headers: _headers,
+      body: jsonEncode({'statut': statut}),
+    );
+    if (res.statusCode != 200) {
+      throw ApiException(res.statusCode, _parseError(res.body));
+    }
+  }
+
   Future<List<Map<String, dynamic>>> getReports({String? statut}) async {
     final uri = Uri.parse('$baseUrl/api/reports/').replace(
       queryParameters: {'statut': statut},

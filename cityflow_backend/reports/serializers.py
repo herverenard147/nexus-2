@@ -3,10 +3,20 @@ from .models import Report, classify_severity
 
 
 class ReportSerializer(serializers.ModelSerializer):
+    segment_nom = serializers.CharField(source='segment.nom', read_only=True)
+
     class Meta:
         model = Report
         fields = '__all__'
         read_only_fields = ('gravite', 'statut', 'nb_confirmations', 'created_at', 'user')
+
+
+class ReportPatchSerializer(serializers.ModelSerializer):
+    """Autorité uniquement : permet de changer le statut d'un signalement."""
+
+    class Meta:
+        model = Report
+        fields = ('statut',)
 
 
 class ReportCreateSerializer(serializers.ModelSerializer):
