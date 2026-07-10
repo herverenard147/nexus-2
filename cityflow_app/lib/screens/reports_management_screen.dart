@@ -42,6 +42,11 @@ class _ReportsManagementScreenState extends State<ReportsManagementScreen> {
     }
   }
 
+  Future<void> _resolve(int reportId) async {
+    await widget.api.updateReport(reportId, 'resolu');
+    await _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -99,8 +104,15 @@ class _ReportsManagementScreenState extends State<ReportsManagementScreen> {
             const Icon(Icons.check_circle_outline,
                 size: 56, color: AppColors.fluide),
             const SizedBox(height: AppSpacing.md),
-            Text('Aucun signalement $_filter',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 16)),
+            Text(
+              _filter == 'actif'
+                  ? 'Aucun signalement actif'
+                  : _filter == 'resolu'
+                      ? 'Aucun signalement résolu'
+                      : 'Aucun signalement',
+              style:
+                  Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 16),
+            ),
           ],
         ),
       );
@@ -111,11 +123,16 @@ class _ReportsManagementScreenState extends State<ReportsManagementScreen> {
         padding: const EdgeInsets.all(AppSpacing.md),
         itemCount: _reports!.length,
         separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.xs),
-        itemBuilder: (context, i) => _ReportTile(report: _reports![i]),
+        itemBuilder: (context, i) => _ReportTile(
+          report: _reports![i],
+          onResolve: _resolve,
+        ),
       ),
     );
   }
 }
+
+// ── Filter bar ─────────────────────────────────────────────────────────────────
 
 class _FilterBar extends StatelessWidget {
   final String current;
@@ -177,18 +194,51 @@ class _Chip extends StatelessWidget {
   }
 }
 
-class _ReportTile extends StatelessWidget {
+// ── Report tile ────────────────────────────────────────────────────────────────
+
+class _ReportTile extends StatefulWidget {
   final Map<String, dynamic> report;
-  const _ReportTile({required this.report});
+  final Future<void> Function(int id) onResolve;
+
+  const _ReportTile({required this.report, required this.onResolve});
+
+  @override
+  State<_ReportTile> createState() => _ReportTileState();
+}
+
+class _ReportTileState extends State<_ReportTile> {
+  bool _resolving = false;
+
+  Future<void> _handleResolve() async {
+    final id = widget.report['id'] as int?;
+    if (id == null) return;
+    setState(() => _resolving = true);
+    try {
+      await widget.onResolve(id);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur ${e.statusCode} : ${e.message}'),
+          backgroundColor: AppColors.bloque,
+        ),
+      );
+      setState(() => _resolving = false);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _resolving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final type = report['type'] as String? ?? '—';
-    final gravite = report['gravite'] as String? ?? '—';
-    final nb = report['nb_confirmations'] as int? ?? 1;
-    final statut = report['statut'] as String? ?? '—';
-    final segment = report['segment_nom'] as String? ??
-        'Segment ${report['segment']}';
+    final type = widget.report['type'] as String? ?? '—';
+    final gravite = widget.report['gravite'] as String? ?? '—';
+    final nb = (widget.report['nb_confirmations'] as num?)?.toInt() ?? 1;
+    final statut = widget.report['statut'] as String? ?? '—';
+    final segment = widget.report['segment_nom'] as String? ??
+        'Segment ${widget.report['segment']}';
+    final isActif = statut == 'actif';
 
     final Color statusColor;
     final IconData statusIcon;
@@ -213,39 +263,76 @@ class _ReportTile extends StatelessWidget {
         borderRadius: AppRadius.cardBorder,
         boxShadow: AppShadows.card,
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(statusIcon, color: statusColor, size: 22),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(type,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 14)),
-                const SizedBox(height: 2),
-                Text(segment,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.onSurfaceVariant),
-                    overflow: TextOverflow.ellipsis),
-              ],
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          Row(
             children: [
-              Text('gravité : $gravite',
-                  style: const TextStyle(
-                      fontSize: 11, color: AppColors.onSurfaceVariant)),
-              const SizedBox(height: 2),
-              Text('$nb confirmation${nb > 1 ? 's' : ''}',
-                  style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.primary)),
+              Icon(statusIcon, color: statusColor, size: 22),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(type,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w600, fontSize: 14)),
+                    const SizedBox(height: 2),
+                    Text(segment,
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.onSurfaceVariant),
+                        overflow: TextOverflow.ellipsis),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text('gravité : $gravite',
+                      style: const TextStyle(
+                          fontSize: 11, color: AppColors.onSurfaceVariant)),
+                  const SizedBox(height: 2),
+                  Text('$nb confirmation${nb > 1 ? 's' : ''}',
+                      style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary)),
+                ],
+              ),
             ],
           ),
+          if (isActif) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Align(
+              alignment: Alignment.centerRight,
+              child: SizedBox(
+                height: 34,
+                child: ElevatedButton.icon(
+                  onPressed: _resolving ? null : _handleResolve,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.fluide,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm, vertical: 0),
+                    textStyle: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w600),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: AppRadius.chipBorder),
+                  ),
+                  icon: _resolving
+                      ? const SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation(Colors.white)))
+                      : const Icon(Icons.check_outlined, size: 14),
+                  label: const Text('Traiter'),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

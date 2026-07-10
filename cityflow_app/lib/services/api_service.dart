@@ -10,6 +10,10 @@ import '../models/weather_alert.dart';
 const String _kProdUrl = 'https://cityflow-backend-vhz5.onrender.com';
 const String _kDevUrl = 'http://10.0.2.2:8000';
 const _storage = FlutterSecureStorage();
+
+// Permet de cibler un backend local en web dev :
+// flutter run -d chrome --dart-define=BACKEND_URL=http://localhost:8000
+const String _kEnvUrl = String.fromEnvironment('BACKEND_URL');
 const _keyAccess = 'cf_access';
 const _keyRefresh = 'cf_refresh';
 const _keyRole = 'cf_role';
@@ -21,10 +25,36 @@ class ApiService {
   String? _userRole;
 
   ApiService({String? baseUrl})
-      : baseUrl = baseUrl ?? (kIsWeb ? _kProdUrl : _kDevUrl);
+      : baseUrl = baseUrl ??
+            (_kEnvUrl.isNotEmpty ? _kEnvUrl : kIsWeb ? _kProdUrl : _kDevUrl);
 
   bool get isAuthenticated => _accessToken != null;
-  String get userRole => _userRole ?? 'citoyen';
+
+  /// Decode role from JWT payload — fallback when secure-storage misses cf_role.
+  static String _roleFromJwt(String token) {
+    try {
+      final parts = token.split('.');
+      if (parts.length < 2) return 'citoyen';
+      var payload = parts[1];
+      switch (payload.length % 4) {
+        case 2:
+          payload += '==';
+        case 3:
+          payload += '=';
+      }
+      final claims =
+          jsonDecode(utf8.decode(base64Url.decode(payload))) as Map<String, dynamic>;
+      return claims['role'] as String? ?? 'citoyen';
+    } catch (_) {
+      return 'citoyen';
+    }
+  }
+
+  String get userRole {
+    if (_userRole != null && _userRole!.isNotEmpty) return _userRole!;
+    if (_accessToken != null) return _roleFromJwt(_accessToken!);
+    return 'citoyen';
+  }
 
   void setToken(String token) => _accessToken = token;
   void clearToken() {
@@ -59,6 +89,7 @@ class ApiService {
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         _accessToken = data['access'] as String;
+        _userRole = _roleFromJwt(_accessToken!);
         await _storage.write(key: _keyAccess, value: _accessToken);
         return true;
       }
@@ -184,6 +215,17 @@ class ApiService {
     );
     if (res.statusCode == 201) return jsonDecode(res.body) as Map<String, dynamic>;
     throw ApiException(res.statusCode, _parseError(res.body));
+  }
+
+  Future<void> updateReport(int id, String statut) async {
+    final res = await http.patch(
+      Uri.parse('$baseUrl/api/reports/$id/'),
+      headers: _headers,
+      body: jsonEncode({'statut': statut}),
+    );
+    if (res.statusCode != 200) {
+      throw ApiException(res.statusCode, _parseError(res.body));
+    }
   }
 
   Future<List<Map<String, dynamic>>> getReports({String? statut}) async {

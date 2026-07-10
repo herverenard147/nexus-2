@@ -55,32 +55,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  List<_ZoneRow> _buildZoneRows() {
-    final segments = _zones ?? [];
-    final Map<String, _ZoneRow> agg = {};
-    for (final z in segments) {
-      final nom = z['zone'] as String? ?? '—';
-      final score = (z['score_composite'] as num?)?.toInt() ?? 0;
-      if (agg.containsKey(nom)) {
-        final existing = agg[nom]!;
-        agg[nom] = _ZoneRow(
-          zone: nom,
-          score: ((existing.score + score) / 2).round(),
-          count: existing.count + 1,
-        );
-      } else {
-        agg[nom] = _ZoneRow(zone: nom, score: score, count: 1);
-      }
-    }
-    final rows = agg.values.toList()..sort((a, b) => b.score.compareTo(a.score));
-    return rows.take(5).toList();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.surfaceContainerLow,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.onPrimary,
         title: Row(
@@ -153,7 +133,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       children: [
                         _StatsRow(stats: _stats ?? {}),
                         const SizedBox(height: AppSpacing.lg),
-                        _CriticalZonesCard(rows: _buildZoneRows()),
+                        _CriticalSegmentsCard(segments: _zones ?? []),
                         const SizedBox(height: AppSpacing.lg),
                         _ExportCard(api: widget.api),
                         const SizedBox(height: AppSpacing.lg),
@@ -175,7 +155,15 @@ class _StatsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final congestion = (stats['congestion_moyenne'] as num?)?.toStringAsFixed(0) ?? '—';
+    final congestionRaw = (stats['congestion_moyenne'] as num?)?.round() ?? -1;
+    final congestion = congestionRaw < 0 ? '—' : '$congestionRaw';
+    final congestionNiveau = congestionRaw < 0
+        ? 0
+        : congestionRaw >= 70
+            ? 2
+            : congestionRaw >= 40
+                ? 1
+                : 0;
     return Row(
       children: [
         Expanded(
@@ -201,7 +189,7 @@ class _StatsRow extends StatelessWidget {
             label: 'Congestion moy.',
             value: congestion == '—' ? '—' : '$congestion/100',
             icon: Icons.speed_outlined,
-            color: AppColors.bloque,
+            color: AppColors.trafficColor(congestionNiveau),
           ),
         ),
       ],
@@ -252,9 +240,9 @@ class _KpiCard extends StatelessWidget {
   }
 }
 
-class _CriticalZonesCard extends StatelessWidget {
-  final List<_ZoneRow> rows;
-  const _CriticalZonesCard({required this.rows});
+class _CriticalSegmentsCard extends StatelessWidget {
+  final List<Map<String, dynamic>> segments;
+  const _CriticalSegmentsCard({required this.segments});
 
   @override
   Widget build(BuildContext context) {
@@ -272,100 +260,141 @@ class _CriticalZonesCard extends StatelessWidget {
                 AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.sm),
             child: Row(
               children: [
-                const Icon(Icons.location_on_outlined,
+                const Icon(Icons.route_outlined,
                     size: 18, color: AppColors.primary),
                 const SizedBox(width: AppSpacing.xs),
-                Text('Top 5 zones critiques',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontSize: 16,
-                        )),
+                Text('Top 5 axes critiques',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(fontSize: 16)),
                 const Spacer(),
-                const Text('agrégé par zone',
+                const Text('score composite',
                     style: TextStyle(
                         fontSize: 11, color: AppColors.onSurfaceVariant)),
               ],
             ),
           ),
           const Divider(height: 1),
-          if (rows.isEmpty)
+          if (segments.isEmpty)
             const Padding(
               padding: EdgeInsets.all(AppSpacing.lg),
-              child: Text('Aucune zone critique détectée.',
+              child: Text('Aucun axe critique détecté.',
                   style: TextStyle(color: AppColors.onSurfaceVariant)),
             )
           else
-            ...rows.asMap().entries.map((e) => _ZoneRowTile(
-                rank: e.key + 1, row: e.value)),
+            ...segments.asMap().entries.map(
+                  (e) => _SegmentRowTile(rank: e.key + 1, seg: e.value),
+                ),
         ],
       ),
     );
   }
 }
 
-class _ZoneRow {
-  final String zone;
-  final int score;
-  final int count;
-  const _ZoneRow({required this.zone, required this.score, required this.count});
-}
-
-class _ZoneRowTile extends StatelessWidget {
+class _SegmentRowTile extends StatelessWidget {
   final int rank;
-  final _ZoneRow row;
-  const _ZoneRowTile({required this.rank, required this.row});
+  final Map<String, dynamic> seg;
+  const _SegmentRowTile({required this.rank, required this.seg});
+
+  static const _labels = ['Fluide', 'Dense', 'Bloqué'];
+  static const _icons = [Icons.check_circle, Icons.warning, Icons.cancel];
 
   @override
   Widget build(BuildContext context) {
-    final niveau = row.score >= 70 ? 2 : row.score >= 40 ? 1 : 0;
+    final score = (seg['score_composite'] as num?)?.toInt() ?? 0;
+    final nom = seg['segment_nom'] as String? ?? '—';
+    final zone = seg['zone'] as String? ?? '';
+    final hasMeteo = seg['alerte_meteo'] == true;
+    final nbSig = (seg['nb_signalements_actifs'] as num?)?.toInt() ?? 0;
+
+    final niveau = score >= 70 ? 2 : score >= 40 ? 1 : 0;
     final color = AppColors.trafficColor(niveau);
-    final labels = ['Fluide', 'Dense', 'Bloqué'];
-    final icons = [Icons.check_circle, Icons.warning, Icons.cancel];
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.sm),
       decoration: const BoxDecoration(
         border: Border(
             bottom: BorderSide(color: AppColors.outlineVariant, width: 1)),
       ),
       child: Row(
         children: [
-          Text('$rank',
-              style: const TextStyle(
-                  color: AppColors.onSurfaceVariant,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600)),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Text(row.zone,
-                style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
+          // Rang
+          SizedBox(
+            width: 20,
+            child: Text('$rank',
+                style: const TextStyle(
+                    color: AppColors.onSurfaceVariant,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600)),
           ),
+          const SizedBox(width: AppSpacing.xs),
+          // Nom + zone + badges incidents/météo
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(nom,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 13),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    if (zone.isNotEmpty)
+                      Text(zone,
+                          style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.onSurfaceVariant)),
+                    if (hasMeteo) ...[
+                      const SizedBox(width: 4),
+                      const Icon(Icons.water_drop,
+                          size: 11, color: AppColors.inondation),
+                    ],
+                    if (nbSig > 0) ...[
+                      const SizedBox(width: 4),
+                      const Icon(Icons.warning_rounded,
+                          size: 11, color: AppColors.dense),
+                      Text(' $nbSig',
+                          style: const TextStyle(
+                              fontSize: 10, color: AppColors.dense)),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          // Badge niveau
           Container(
             padding:
-                const EdgeInsets.symmetric(horizontal: AppSpacing.xs, vertical: 3),
+                const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
+              color: color.withValues(alpha: 0.12),
               borderRadius: AppRadius.chipBorder,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icons[niveau], size: 13, color: color),
-                const SizedBox(width: 4),
-                Text(labels[niveau],
+                Icon(_icons[niveau], size: 12, color: color),
+                const SizedBox(width: 3),
+                Text(_labels[niveau],
                     style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
                         fontWeight: FontWeight.w600,
                         color: color)),
               ],
             ),
           ),
-          const SizedBox(width: AppSpacing.sm),
-          Text('${row.score}/100',
-              style: const TextStyle(
-                  fontSize: 13,
+          const SizedBox(width: AppSpacing.xs),
+          // Score
+          Text('$score',
+              style: TextStyle(
+                  fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.onSurface)),
+                  color: color)),
         ],
       ),
     );
