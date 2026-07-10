@@ -10,6 +10,10 @@ import '../models/weather_alert.dart';
 const String _kProdUrl = 'https://cityflow-backend-vhz5.onrender.com';
 const String _kDevUrl = 'http://10.0.2.2:8000';
 const _storage = FlutterSecureStorage();
+
+// Permet de cibler un backend local en web dev :
+// flutter run -d chrome --dart-define=BACKEND_URL=http://localhost:8000
+const String _kEnvUrl = String.fromEnvironment('BACKEND_URL');
 const _keyAccess = 'cf_access';
 const _keyRefresh = 'cf_refresh';
 const _keyRole = 'cf_role';
@@ -21,7 +25,8 @@ class ApiService {
   String? _userRole;
 
   ApiService({String? baseUrl})
-      : baseUrl = baseUrl ?? (kIsWeb ? _kProdUrl : _kDevUrl);
+      : baseUrl = baseUrl ??
+            (_kEnvUrl.isNotEmpty ? _kEnvUrl : kIsWeb ? _kProdUrl : _kDevUrl);
 
   bool get isAuthenticated => _accessToken != null;
 

@@ -72,6 +72,23 @@ class ReportDeduplicationTests(APITestCase):
         )
         res = self.client.patch(f'/api/reports/{report.id}/', {'statut': 'resolu'})
         self.assertEqual(res.status_code, status.HTTP_200_OK)
+        # Vérifie que le statut a réellement changé en base (pas juste le code HTTP)
+        report.refresh_from_db()
+        self.assertEqual(report.statut, 'resolu')
+
+    def test_patch_statut_disparait_des_actifs(self):
+        """Simule PATCH puis GET : le report résolu doit disparaître de la liste actif."""
+        autorite = _user(username='auth2', role='autorite')
+        self.client.force_authenticate(user=autorite)
+        report = Report.objects.create(
+            user=self.user, segment=self.seg, type='nid_de_poule',
+            gravite='faible', statut='actif',
+        )
+        self.client.patch(f'/api/reports/{report.id}/', {'statut': 'resolu'})
+        get_res = self.client.get('/api/reports/?statut=actif')
+        self.assertEqual(get_res.status_code, status.HTTP_200_OK)
+        ids = [r['id'] for r in get_res.data]
+        self.assertNotIn(report.id, ids)
 
     def test_filter_by_statut(self):
         Report.objects.create(
