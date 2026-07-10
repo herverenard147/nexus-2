@@ -62,23 +62,29 @@ def predict_congestion(segment_id, horizon_min=15, timestamp=None):
 
     # 2. Facteur météo (uniquement si zone_inondable)
     facteurs['effet_meteo'] = 'aucun'
+    facteurs['delta_meteo_pts'] = 0
     if segment.zone_inondable:
         weather = get_active_weather(segment.zone)
         if weather and weather.type != 'normal':
+            score_avant_meteo = score
             if weather.type == 'pluie_forte':
                 score *= POIDS_METEO_FORTE
                 facteurs['effet_meteo'] = 'fort'
             elif weather.type == 'pluie_moderee':
                 score *= POIDS_METEO_MODEREE
                 facteurs['effet_meteo'] = 'modéré'
+            facteurs['delta_meteo_pts'] = round(score - score_avant_meteo)
 
     # 3. Bonus signalements actifs
     nb_reports = Report.objects.filter(segment=segment, statut='actif').count()
+    facteurs['nb_signalements'] = nb_reports
     if nb_reports:
         score += nb_reports * POIDS_SIGNALEMENT
         facteurs['effet_signalement'] = 'présent'
+        facteurs['delta_signalement_pts'] = round(nb_reports * POIDS_SIGNALEMENT)
     else:
         facteurs['effet_signalement'] = 'aucun'
+        facteurs['delta_signalement_pts'] = 0
 
     score = max(0, min(100, int(round(score))))
 
