@@ -155,7 +155,15 @@ class _StatsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final congestion = (stats['congestion_moyenne'] as num?)?.toStringAsFixed(0) ?? '—';
+    final congestionRaw = (stats['congestion_moyenne'] as num?)?.round() ?? -1;
+    final congestion = congestionRaw < 0 ? '—' : '$congestionRaw';
+    final congestionNiveau = congestionRaw < 0
+        ? 0
+        : congestionRaw >= 70
+            ? 2
+            : congestionRaw >= 40
+                ? 1
+                : 0;
     return Row(
       children: [
         Expanded(
@@ -181,7 +189,7 @@ class _StatsRow extends StatelessWidget {
             label: 'Congestion moy.',
             value: congestion == '—' ? '—' : '$congestion/100',
             icon: Icons.speed_outlined,
-            color: AppColors.bloque,
+            color: AppColors.trafficColor(congestionNiveau),
           ),
         ),
       ],
