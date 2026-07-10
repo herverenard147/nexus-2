@@ -38,10 +38,9 @@ class _LoginScreenState extends State<LoginScreen> {
       _error = null;
     });
     try {
-      final data = await widget.api.login(_userCtrl.text.trim(), _passCtrl.text);
+      await widget.api.login(_userCtrl.text.trim(), _passCtrl.text);
       if (!mounted) return;
-      final role = data['role'] as String? ?? '';
-      if (role == 'autorite') {
+      if (widget.api.userRole == 'autorite') {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => DashboardScreen(api: widget.api)),

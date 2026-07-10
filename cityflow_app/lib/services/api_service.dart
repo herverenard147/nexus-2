@@ -12,21 +12,25 @@ const String _kDevUrl = 'http://10.0.2.2:8000';
 const _storage = FlutterSecureStorage();
 const _keyAccess = 'cf_access';
 const _keyRefresh = 'cf_refresh';
+const _keyRole = 'cf_role';
 
 class ApiService {
   final String baseUrl;
   String? _accessToken;
   String? _refreshToken;
+  String? _userRole;
 
   ApiService({String? baseUrl})
       : baseUrl = baseUrl ?? (kIsWeb ? _kProdUrl : _kDevUrl);
 
   bool get isAuthenticated => _accessToken != null;
+  String get userRole => _userRole ?? 'citoyen';
 
   void setToken(String token) => _accessToken = token;
   void clearToken() {
     _accessToken = null;
     _refreshToken = null;
+    _userRole = null;
   }
 
   Map<String, String> get _headers => {
@@ -37,6 +41,7 @@ class ApiService {
   Future<void> restoreSession() async {
     _accessToken = await _storage.read(key: _keyAccess);
     _refreshToken = await _storage.read(key: _keyRefresh);
+    _userRole = await _storage.read(key: _keyRole);
     if (_accessToken != null && _refreshToken != null) {
       final ok = await _tryRefresh();
       if (!ok) await logout();
@@ -71,10 +76,12 @@ class ApiService {
       final data = jsonDecode(res.body) as Map<String, dynamic>;
       _accessToken = data['access'] as String;
       _refreshToken = data['refresh'] as String?;
+      _userRole = data['role'] as String? ?? 'citoyen';
       await _storage.write(key: _keyAccess, value: _accessToken);
       if (_refreshToken != null) {
         await _storage.write(key: _keyRefresh, value: _refreshToken);
       }
+      await _storage.write(key: _keyRole, value: _userRole);
       return data;
     }
     throw ApiException(res.statusCode, 'Identifiants incorrects');
@@ -98,8 +105,10 @@ class ApiService {
   Future<void> logout() async {
     _accessToken = null;
     _refreshToken = null;
+    _userRole = null;
     await _storage.delete(key: _keyAccess);
     await _storage.delete(key: _keyRefresh);
+    await _storage.delete(key: _keyRole);
   }
 
   Future<List<CommuneStats>> getCommuneStats() async {
