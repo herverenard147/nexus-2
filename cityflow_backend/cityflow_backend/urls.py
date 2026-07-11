@@ -212,4 +212,5 @@ urlpatterns = [
     path('api/weather/', include('environment.urls')),
     path('api/reports/', include('reports.urls')),
     path('api/dashboard/', include('dashboard.urls')),
+    path('api/conseil/', include('conseil.urls')),
 ]
