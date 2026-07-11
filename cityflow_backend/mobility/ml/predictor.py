@@ -1,4 +1,15 @@
+"""
+Prédicateur de congestion CityFlow.
+
+Stratégie :
+  1. Modèle GradientBoosting (ML) — chargé une fois au démarrage depuis model.pkl
+  2. Formule pondérée (fallback) — si model.pkl absent ou erreur ML
+
+Les facteurs explicatifs (effet_meteo, effet_signalement, etc.) sont toujours
+renseignés dans les deux chemins, pour ne pas casser l'API d'explicabilité.
+"""
 import logging
+import os
 
 from django.utils import timezone
 
@@ -9,16 +20,40 @@ from .weights import (
 
 logger = logging.getLogger('mobility')
 
+_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'model.pkl')
+
+# Chargement unique au démarrage du processus
+_model = None
+try:
+    import joblib
+    _model = joblib.load(_MODEL_PATH)
+    logger.info('predictor: modèle ML chargé (%s)', _MODEL_PATH)
+except FileNotFoundError:
+    logger.warning('predictor: model.pkl absent — mode fallback (formule pondérée)')
+except Exception as _exc:
+    logger.error('predictor: échec chargement modèle — fallback. %s', _exc)
+
 
 def predict_congestion(segment_id, horizon_min=15, timestamp=None):
     """
     Prédit le niveau de congestion pour un segment à horizon_min minutes.
 
-    Formule :
-      score_base = moyenne historique (même heure + jour de semaine)
-      × facteur_meteo (si zone_inondable et WeatherEvent actif)
-      + bonus_signalement (si reports actifs)
-    Résultat plafonné à [0, 100].
+    Retourne :
+      {
+        'score': int [0, 100],
+        'facteurs': {
+          'version_modele': str,
+          'source_modele': 'ml' | 'fallback',
+          'effet_meteo': 'aucun' | 'modéré' | 'fort',
+          'delta_meteo_pts': int,
+          'nb_signalements': int,
+          'effet_signalement': 'aucun' | 'présent',
+          'delta_signalement_pts': int,
+          'donnees_insuffisantes': bool,   # fallback uniquement
+          'historique_moyen': int,         # fallback uniquement
+        },
+        'version_modele': str,
+      }
 
     timestamp : optionnel (défaut timezone.now()) pour la testabilité unitaire.
     """
@@ -29,20 +64,72 @@ def predict_congestion(segment_id, horizon_min=15, timestamp=None):
     if timestamp is None:
         timestamp = timezone.now()
 
-    # Validate inputs
+    # Validation des entrées
     try:
         segment = RoadSegment.objects.get(pk=segment_id)
     except RoadSegment.DoesNotExist:
-        raise ValueError(f"Segment {segment_id} introuvable")
+        raise ValueError(f'Segment {segment_id} introuvable')
 
     if not (1 <= horizon_min <= 120):
-        raise ValueError(f"horizon_min doit être entre 1 et 120, reçu : {horizon_min}")
+        raise ValueError(f'horizon_min doit être entre 1 et 120, reçu : {horizon_min}')
 
     facteurs = {'version_modele': VERSION_MODELE}
 
-    # 1. Moyenne historique (même heure et jour de semaine)
     heure = timestamp.hour
     jour_semaine = timestamp.weekday()
+
+    # ── Contexte météo (commun ML + fallback) ────────────────────────────────
+    intensite_meteo = 0          # 0=normal, 1=moderée, 2=forte
+    facteurs['effet_meteo'] = 'aucun'
+    facteurs['delta_meteo_pts'] = 0
+    weather = None
+    if segment.zone_inondable:
+        weather = get_active_weather(segment.zone)
+        if weather and weather.type != 'normal':
+            if weather.type == 'pluie_forte':
+                intensite_meteo = 2
+                facteurs['effet_meteo'] = 'fort'
+            elif weather.type == 'pluie_moderee':
+                intensite_meteo = 1
+                facteurs['effet_meteo'] = 'modéré'
+
+    # ── Signalements actifs (commun ML + fallback) ────────────────────────────
+    nb_reports = Report.objects.filter(segment=segment, statut='actif').count()
+    facteurs['nb_signalements'] = nb_reports
+    facteurs['effet_signalement'] = 'présent' if nb_reports > 0 else 'aucun'
+    facteurs['delta_signalement_pts'] = 0
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # CHEMIN 1 — Modèle ML
+    # ══════════════════════════════════════════════════════════════════════════
+    if _model is not None:
+        try:
+            import numpy as np
+            features = np.array([[
+                float(heure),
+                float(jour_semaine),
+                float(segment.pk),
+                float(int(segment.zone_inondable)),
+                float(intensite_meteo),
+                float(nb_reports),
+            ]], dtype=np.float32)
+            raw = float(_model.predict(features)[0])
+            score = max(0, min(100, int(round(raw))))
+            facteurs['source_modele'] = 'ml'
+            facteurs['donnees_insuffisantes'] = False
+            return {
+                'score': score,
+                'facteurs': facteurs,
+                'version_modele': VERSION_MODELE,
+            }
+        except Exception as exc:
+            logger.error('predictor: erreur lors de la prédiction ML — repli formule. %s', exc)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # CHEMIN 2 — Formule pondérée (fallback)
+    # ══════════════════════════════════════════════════════════════════════════
+    facteurs['source_modele'] = 'fallback'
+
     historique = TrafficRecord.objects.filter(
         segment=segment,
         source='simule',
@@ -51,7 +138,10 @@ def predict_congestion(segment_id, horizon_min=15, timestamp=None):
     )
     count = historique.count()
     if count == 0:
-        logger.warning("Historique insuffisant pour segment %s heure %s jour %s", segment_id, heure, jour_semaine)
+        logger.warning(
+            'predictor(fallback): historique insuffisant — segment=%s heure=%s jour=%s',
+            segment_id, heure, jour_semaine,
+        )
         facteurs['donnees_insuffisantes'] = True
         score = 50
     else:
@@ -60,34 +150,23 @@ def predict_congestion(segment_id, horizon_min=15, timestamp=None):
         score = sum(values) / count
         facteurs['historique_moyen'] = round(score)
 
-    # 2. Facteur météo (uniquement si zone_inondable)
-    facteurs['effet_meteo'] = 'aucun'
-    facteurs['delta_meteo_pts'] = 0
-    if segment.zone_inondable:
-        weather = get_active_weather(segment.zone)
-        if weather and weather.type != 'normal':
-            score_avant_meteo = score
-            if weather.type == 'pluie_forte':
-                score *= POIDS_METEO_FORTE
-                facteurs['effet_meteo'] = 'fort'
-            elif weather.type == 'pluie_moderee':
-                score *= POIDS_METEO_MODEREE
-                facteurs['effet_meteo'] = 'modéré'
-            facteurs['delta_meteo_pts'] = round(score - score_avant_meteo)
+    # Facteur météo
+    if intensite_meteo == 2:
+        score_avant = score
+        score *= POIDS_METEO_FORTE
+        facteurs['delta_meteo_pts'] = round(score - score_avant)
+    elif intensite_meteo == 1:
+        score_avant = score
+        score *= POIDS_METEO_MODEREE
+        facteurs['delta_meteo_pts'] = round(score - score_avant)
 
-    # 3. Bonus signalements actifs
-    nb_reports = Report.objects.filter(segment=segment, statut='actif').count()
-    facteurs['nb_signalements'] = nb_reports
+    # Bonus signalements
     if nb_reports:
-        score += nb_reports * POIDS_SIGNALEMENT
-        facteurs['effet_signalement'] = 'présent'
-        facteurs['delta_signalement_pts'] = round(nb_reports * POIDS_SIGNALEMENT)
-    else:
-        facteurs['effet_signalement'] = 'aucun'
-        facteurs['delta_signalement_pts'] = 0
+        bonus = nb_reports * POIDS_SIGNALEMENT
+        score += bonus
+        facteurs['delta_signalement_pts'] = round(bonus)
 
     score = max(0, min(100, int(round(score))))
-
     return {
         'score': score,
         'facteurs': facteurs,
