@@ -4,6 +4,7 @@ import '../theme/app_theme.dart';
 import 'home_screen.dart';
 import 'report_screen.dart';
 import 'alerts_screen.dart';
+import 'conseiller_screen.dart';
 import 'login_screen.dart';
 
 class MainShell extends StatefulWidget {
@@ -21,6 +22,7 @@ class _MainShellState extends State<MainShell> {
     HomeScreen(api: widget.api),
     ReportScreen(api: widget.api),
     AlertsScreen(api: widget.api),
+    ConseillerScreen(api: widget.api),
   ];
 
   Future<void> _logout() async {
@@ -82,6 +84,11 @@ class _MainShellState extends State<MainShell> {
               icon: Icon(Icons.notifications_outlined),
               selectedIcon: Icon(Icons.notifications),
               label: 'Alertes',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.route_outlined),
+              selectedIcon: Icon(Icons.route),
+              label: 'Trajet',
             ),
           ],
         ),

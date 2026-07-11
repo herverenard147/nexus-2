@@ -259,6 +259,29 @@ class ApiService {
     throw ApiException(res.statusCode, 'Erreur stats');
   }
 
+  Future<List<Map<String, dynamic>>> getCorridors() async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/api/conseil/'),
+      headers: _headers,
+    );
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      return (data['corridors'] as List).cast<Map<String, dynamic>>();
+    }
+    throw ApiException(res.statusCode, 'Erreur chargement corridors');
+  }
+
+  Future<Map<String, dynamic>> getConseil(String corridorKey) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/api/conseil/?corridor=$corridorKey'),
+      headers: _headers,
+    );
+    if (res.statusCode == 200) {
+      return jsonDecode(res.body) as Map<String, dynamic>;
+    }
+    throw ApiException(res.statusCode, 'Erreur chargement conseil');
+  }
+
   Future<String> downloadCsvExport() async {
     final res = await http.get(
       Uri.parse('$baseUrl/api/dashboard/export/'),
