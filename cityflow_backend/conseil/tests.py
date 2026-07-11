@@ -29,7 +29,7 @@ class ConseilCorrridorsUnitTests(TestCase):
 
     def test_corridors_ont_champs_requis(self):
         for key, conf in CORRIDORS.items():
-            for champ in ('nom', 'depart', 'arrivee', 'segments', 'duree_base_min', 'alternative'):
+            for champ in ('nom', 'depart', 'arrivee', 'segments', 'alternative'):
                 self.assertIn(champ, conf, f'Corridor {key} manque le champ {champ}')
 
     def test_conseil_corridor_valide(self):
@@ -39,7 +39,7 @@ class ConseilCorrridorsUnitTests(TestCase):
 
     def test_conseil_champs_obligatoires(self):
         result = generer_conseil('cocody_plateau')
-        for champ in ('conseil', 'etat_global', 'score_moyen', 'duree_estimee_min',
+        for champ in ('conseil', 'etat_global', 'score_moyen', 'impact_temps',
                       'segments', 'points_ralentissement', 'genere_a'):
             self.assertIn(champ, result, f'Champ manquant : {champ}')
 
@@ -52,9 +52,14 @@ class ConseilCorrridorsUnitTests(TestCase):
         self.assertGreaterEqual(result['score_moyen'], 0)
         self.assertLessEqual(result['score_moyen'], 100)
 
-    def test_duree_estimee_superieure_ou_egale_base(self):
+    def test_impact_temps_est_qualificatif(self):
+        """impact_temps doit être une chaîne qualitative, sans chiffre."""
         result = generer_conseil('cocody_plateau')
-        self.assertGreaterEqual(result['duree_estimee_min'], result['duree_base_min'])
+        impact = result['impact_temps']
+        self.assertIsInstance(impact, str)
+        self.assertGreater(len(impact), 0)
+        # Ne doit contenir aucun chiffre (pas de minutes inventées)
+        self.assertFalse(any(c.isdigit() for c in impact), f'Chiffre trouvé dans impact_temps : {impact}')
 
     def test_conseil_congestion_inclut_alternative(self):
         """Quand congestionné → le texte de conseil mentionne une alternative."""
@@ -102,7 +107,7 @@ class ConseilAPITests(APITestCase):
     def test_liste_corridors_champs(self):
         res = self.client.get('/api/conseil/')
         premier = res.data['corridors'][0]
-        for champ in ('key', 'nom', 'depart', 'arrivee', 'duree_base_min'):
+        for champ in ('key', 'nom', 'depart', 'arrivee', 'description'):
             self.assertIn(champ, premier)
 
     def test_conseil_corridor_valide(self):

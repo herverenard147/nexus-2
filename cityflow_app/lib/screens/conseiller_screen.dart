@@ -234,8 +234,7 @@ class _ConseillerScreenState extends State<ConseillerScreen> {
     final etat = _conseil!['etat_global'] as String? ?? 'inconnu';
     final score = _conseil!['score_moyen'] as int? ?? 0;
     final conseil = _conseil!['conseil'] as String? ?? '';
-    final duree = _conseil!['duree_estimee_min'] as int? ?? 0;
-    final dureeBase = _conseil!['duree_base_min'] as int? ?? 0;
+    final impactTemps = _conseil!['impact_temps'] as String? ?? '';
     final points = (_conseil!['points_ralentissement'] as List?)
             ?.cast<String>() ??
         [];
@@ -275,7 +274,7 @@ class _ConseillerScreenState extends State<ConseillerScreen> {
                       ),
                     ),
                     Text(
-                      'Score $score/100 · $duree min${duree != dureeBase ? ' (base $dureeBase min)' : ''}',
+                      'Score $score/100 · $impactTemps',
                       style: const TextStyle(
                           fontSize: 13,
                           color: AppColors.onSurfaceVariant),
@@ -508,10 +507,12 @@ class _CorridorTile extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      '${corridor['duree_base_min']} min sans trafic',
+                      corridor['description'] as String? ?? '',
                       style: const TextStyle(
                           fontSize: 12,
                           color: AppColors.onSurfaceVariant),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),

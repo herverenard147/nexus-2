@@ -26,7 +26,6 @@ def conseil_trajet(request):
                 'depart': conf['depart'],
                 'arrivee': conf['arrivee'],
                 'description': conf['description'],
-                'duree_base_min': conf['duree_base_min'],
             }
             for key, conf in CORRIDORS.items()
         ]
