@@ -43,6 +43,17 @@ class RoadSegmentViewSet(viewsets.ReadOnlyModelViewSet):
         records = TrafficRecord.objects.filter(segment=segment).order_by('-timestamp')[:100]
         return Response(TrafficRecordSerializer(records, many=True).data)
 
+    @action(detail=True, methods=['get'], url_path='predict',
+            throttle_classes=[PredictionsReadThrottle])
+    def predict(self, request, pk=None):
+        """Prédiction live (appel direct du predictor ML/fallback)."""
+        from .ml.predictor import predict_congestion
+        try:
+            result = predict_congestion(int(pk))
+        except ValueError as exc:
+            raise NotFound(str(exc))
+        return Response(result)
+
 
 class PredictionViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = PredictionSerializer
