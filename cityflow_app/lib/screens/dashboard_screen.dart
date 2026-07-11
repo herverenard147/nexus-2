@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/csv_download.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
 import 'reports_management_screen.dart';
@@ -427,33 +428,14 @@ class _ExportCardState extends State<_ExportCard> {
     try {
       final csv = await widget.api.downloadCsvExport();
       if (!mounted) return;
-      final lines = csv.split('\n').where((l) => l.trim().isNotEmpty).length;
-      showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Row(
-            children: [
-              const Icon(Icons.download_done_outlined, color: AppColors.primary),
-              const SizedBox(width: AppSpacing.xs),
-              Text('Export CSV ($lines lignes)'),
-            ],
-          ),
-          content: SizedBox(
-            width: double.maxFinite,
-            height: 280,
-            child: SingleChildScrollView(
-              child: SelectableText(
-                csv,
-                style: const TextStyle(fontSize: 10),
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Fermer'),
-            ),
-          ],
+      final now = DateTime.now();
+      final date =
+          '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+      downloadCsv(csv, 'cityflow_export_$date.csv');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Téléchargement du CSV démarré'),
+          duration: Duration(seconds: 2),
         ),
       );
     } on ApiException catch (e) {
