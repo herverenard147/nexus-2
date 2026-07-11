@@ -2,14 +2,18 @@
 Prédicateur de congestion CityFlow.
 
 Stratégie :
-  1. Modèle GradientBoosting (ML) — chargé une fois au démarrage depuis model.pkl
-  2. Formule pondérée (fallback) — si model.pkl absent ou erreur ML
+  1. Lookup table ML (24×7) — distillée du GradientBoosting entraîné localement.
+     Chargée depuis lookup.npy via numpy (pas de scikit-learn à l'inférence).
+     Base score = table[heure][jour_semaine], ajusté pour météo et signalements.
+  2. Formule pondérée (fallback) — si lookup.npy absent ou erreur numpy.
 
 Les facteurs explicatifs (effet_meteo, effet_signalement, etc.) sont toujours
 renseignés dans les deux chemins, pour ne pas casser l'API d'explicabilité.
 """
 import logging
 import os
+
+import numpy as np
 
 from django.utils import timezone
 
@@ -20,18 +24,20 @@ from .weights import (
 
 logger = logging.getLogger('mobility')
 
-_MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'model.pkl')
+_LOOKUP_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'lookup.npy')
 
-# Chargement unique au démarrage du processus
-_model = None
+# Chargement unique au démarrage du processus — tableau NumPy (24, 7)
+_lookup = None
 try:
-    import joblib
-    _model = joblib.load(_MODEL_PATH)
-    logger.info('predictor: modèle ML chargé (%s)', _MODEL_PATH)
+    _lookup = np.load(_LOOKUP_PATH)
+    logger.info(
+        'predictor: lookup ML chargé (%s) — min=%.1f max=%.1f',
+        _LOOKUP_PATH, float(_lookup.min()), float(_lookup.max()),
+    )
 except FileNotFoundError:
-    logger.warning('predictor: model.pkl absent — mode fallback (formule pondérée)')
+    logger.warning('predictor: lookup.npy absent — mode fallback (formule pondérée)')
 except Exception as _exc:
-    logger.error('predictor: échec chargement modèle — fallback. %s', _exc)
+    logger.error('predictor: échec chargement lookup — fallback. %s', _exc)
 
 
 def predict_congestion(segment_id, horizon_min=15, timestamp=None):
@@ -82,7 +88,6 @@ def predict_congestion(segment_id, horizon_min=15, timestamp=None):
     intensite_meteo = 0          # 0=normal, 1=moderée, 2=forte
     facteurs['effet_meteo'] = 'aucun'
     facteurs['delta_meteo_pts'] = 0
-    weather = None
     if segment.zone_inondable:
         weather = get_active_weather(segment.zone)
         if weather and weather.type != 'normal':
@@ -100,21 +105,29 @@ def predict_congestion(segment_id, horizon_min=15, timestamp=None):
     facteurs['delta_signalement_pts'] = 0
 
     # ══════════════════════════════════════════════════════════════════════════
-    # CHEMIN 1 — Modèle ML
+    # CHEMIN 1 — Lookup table ML (distillée du GradientBoosting)
     # ══════════════════════════════════════════════════════════════════════════
-    if _model is not None:
+    if _lookup is not None:
         try:
-            import numpy as np
-            features = np.array([[
-                float(heure),
-                float(jour_semaine),
-                float(segment.pk),
-                float(int(segment.zone_inondable)),
-                float(intensite_meteo),
-                float(nb_reports),
-            ]], dtype=np.float32)
-            raw = float(_model.predict(features)[0])
-            score = max(0, min(100, int(round(raw))))
+            base = float(_lookup[heure % 24][jour_semaine % 7])
+
+            # Ajustement météo (même logique que le fallback)
+            if intensite_meteo == 2:
+                adjusted = base * POIDS_METEO_FORTE
+                facteurs['delta_meteo_pts'] = round(adjusted - base)
+                base = adjusted
+            elif intensite_meteo == 1:
+                adjusted = base * POIDS_METEO_MODEREE
+                facteurs['delta_meteo_pts'] = round(adjusted - base)
+                base = adjusted
+
+            # Ajustement signalements
+            if nb_reports:
+                bonus = nb_reports * POIDS_SIGNALEMENT
+                facteurs['delta_signalement_pts'] = round(bonus)
+                base += bonus
+
+            score = max(0, min(100, int(round(base))))
             facteurs['source_modele'] = 'ml'
             facteurs['donnees_insuffisantes'] = False
             return {
@@ -123,7 +136,7 @@ def predict_congestion(segment_id, horizon_min=15, timestamp=None):
                 'version_modele': VERSION_MODELE,
             }
         except Exception as exc:
-            logger.error('predictor: erreur lors de la prédiction ML — repli formule. %s', exc)
+            logger.error('predictor: erreur lookup ML — repli formule. %s', exc)
 
     # ══════════════════════════════════════════════════════════════════════════
     # CHEMIN 2 — Formule pondérée (fallback)

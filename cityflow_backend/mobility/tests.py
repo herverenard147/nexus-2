@@ -74,27 +74,27 @@ class PredictorTests(TestCase):
         result = predict_congestion(seg.id)
         self.assertEqual(result['facteurs']['effet_meteo'], 'aucun')
 
-    # ── Tests du chemin FALLBACK (forcé via patch de _model) ─────────────────
+    # ── Tests du chemin FALLBACK (forcé via patch de _lookup) ────────────────
     # Ces tests vérifient la logique de la formule pondérée : seuils de score,
     # multiplicateurs météo, bonus signalement. Le patch garantit qu'on teste
     # le fallback même si model.pkl est présent.
 
     def test_fallback_no_history_score_is_50(self):
         """Fallback sans historique → score=50, donnees_insuffisantes=True."""
-        original = _pred_module._model
-        _pred_module._model = None
+        original = _pred_module._lookup
+        _pred_module._lookup = None
         try:
             result = predict_congestion(self.seg.id)
             self.assertEqual(result['score'], 50)
             self.assertTrue(result['facteurs']['donnees_insuffisantes'])
             self.assertEqual(result['facteurs']['source_modele'], 'fallback')
         finally:
-            _pred_module._model = original
+            _pred_module._lookup = original
 
     def test_fallback_weather_factor_increases_score(self):
         """Fallback : pluie forte sur segment inondable → score > score_base."""
-        original = _pred_module._model
-        _pred_module._model = None
+        original = _pred_module._lookup
+        _pred_module._lookup = None
         try:
             seg = _make_segment(zone='Yopougon', inondable=True)
             self._add_history(seg, congestion=50)
@@ -107,12 +107,12 @@ class PredictorTests(TestCase):
             self.assertEqual(result['facteurs']['effet_meteo'], 'fort')
             self.assertEqual(result['facteurs']['source_modele'], 'fallback')
         finally:
-            _pred_module._model = original
+            _pred_module._lookup = original
 
     def test_fallback_active_report_increases_score(self):
         """Fallback : signalement actif → score augmente, effet_signalement='présent'."""
-        original = _pred_module._model
-        _pred_module._model = None
+        original = _pred_module._lookup
+        _pred_module._lookup = None
         try:
             self._add_history(self.seg, congestion=30)
             user = _make_user()
@@ -125,18 +125,18 @@ class PredictorTests(TestCase):
             self.assertEqual(result['facteurs']['effet_signalement'], 'présent')
             self.assertEqual(result['facteurs']['source_modele'], 'fallback')
         finally:
-            _pred_module._model = original
+            _pred_module._lookup = original
 
     def test_fallback_activated_when_model_absent(self):
-        """Patch _model=None → source_modele='fallback' même si model.pkl existe."""
-        original = _pred_module._model
-        _pred_module._model = None
+        """Patch _lookup=None → source_modele='fallback' même si lookup.npy existe."""
+        original = _pred_module._lookup
+        _pred_module._lookup = None
         try:
             self._add_history(self.seg, congestion=60)
             result = predict_congestion(self.seg.id)
             self.assertEqual(result['facteurs']['source_modele'], 'fallback')
         finally:
-            _pred_module._model = original
+            _pred_module._lookup = original
 
 
 class MLModelTests(TestCase):
@@ -144,8 +144,8 @@ class MLModelTests(TestCase):
 
     def setUp(self):
         self.seg = _make_segment()
-        if _pred_module._model is None:
-            self.skipTest('model.pkl absent — lancez : python manage.py train_model')
+        if _pred_module._lookup is None:
+            self.skipTest('lookup.npy absent — lancez : python manage.py train_model')
 
     def test_ml_score_in_range(self):
         """Modèle ML chargé → score dans [0, 100]."""
