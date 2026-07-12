@@ -178,6 +178,39 @@ def seed_and_recompute(request):
 
 
 @csrf_exempt
+def fix_admin_password(request):
+    """Diagnostique les comptes autorité et réinitialise le mot de passe admin via ADMIN_PASSWORD. Protégé SEED_TOKEN."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST requis'}, status=405)
+    if not _SEED_TOKEN or request.headers.get('X-Seed-Token') != _SEED_TOKEN:
+        return JsonResponse({'error': 'Token invalide'}, status=403)
+    from accounts.models import User
+    admin_pwd = os.environ.get('ADMIN_PASSWORD')
+    autorite_users = list(User.objects.filter(role='autorite').values('id', 'username', 'is_active'))
+    if not admin_pwd:
+        return JsonResponse({
+            'status': 'error',
+            'detail': 'ADMIN_PASSWORD env var non définie',
+            'autorite_users': autorite_users,
+        }, status=500)
+    updated = []
+    for u_data in autorite_users:
+        try:
+            u = User.objects.get(pk=u_data['id'])
+            u.set_password(admin_pwd)
+            u.save()
+            updated.append({'username': u.username, 'ok': True})
+        except Exception as e:
+            updated.append({'username': u_data['username'], 'ok': False, 'error': str(e)})
+    return JsonResponse({
+        'status': 'ok',
+        'admin_password_set': bool(admin_pwd),
+        'autorite_users': autorite_users,
+        'updated': updated,
+    })
+
+
+@csrf_exempt
 def fix_zones(request):
     """Corrige zone=nom_de_rue → commune. Synchrone (~5 s). Protégé SEED_TOKEN."""
     if request.method != 'POST':
@@ -205,6 +238,7 @@ urlpatterns = [
     path('seed-traffic/', seed_traffic),
     path('recompute/', recompute),
     path('seed-and-recompute/', seed_and_recompute),
+    path('fix-admin-password/', fix_admin_password),
     path('fix-zones/', fix_zones),
     path('admin/', admin.site.urls),
     path('api/auth/', include('accounts.urls')),
