@@ -1,13 +1,16 @@
 import os
 from datetime import timedelta
 from pathlib import Path
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.environ.get(
-    'SECRET_KEY',
-    'django-insecure-arlwvch+zr4hpe==mj&i9ey!ah#u%-*o7zt0#u0)=t_urmtad3',
-)
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    raise ImproperlyConfigured(
+        "La variable d'environnement SECRET_KEY est absente. "
+        "Définissez-la avant de démarrer le serveur."
+    )
 
 DEBUG = os.environ.get('DEBUG', 'True') == 'True'
 
